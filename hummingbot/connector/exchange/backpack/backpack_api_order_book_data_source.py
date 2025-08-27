@@ -108,17 +108,19 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         snapshot_data = await self._request_order_book_snapshot(trading_pair)
 
         # Convert Backpack format [["price", "amount"], ...] to numeric format
-        raw_bids = snapshot_data.get("bids", [])
-        raw_asks = snapshot_data.get("asks", [])
-        
+        if "bids" not in snapshot_data or "asks" not in snapshot_data:
+            raise ValueError(f"Missing bids or asks in snapshot: {snapshot_data}")
+        raw_bids = snapshot_data["bids"]
+        raw_asks = snapshot_data["asks"]
+
         formatted_bids = [[float(bid[0]), float(bid[1])] for bid in raw_bids if len(bid) >= 2]
         formatted_asks = [[float(ask[0]), float(ask[1])] for ask in raw_asks if len(ask) >= 2]
-        
+
         snapshot_message = OrderBookMessage(
             message_type=OrderBookMessageType.SNAPSHOT,
             content={
                 "trading_pair": trading_pair,
-                "update_id": int(snapshot_data.get("lastUpdateId", 0)),
+                "update_id": int(snapshot_data["lastUpdateId"]) if "lastUpdateId" in snapshot_data else 0,
                 "bids": formatted_bids,
                 "asks": formatted_asks,
             },
@@ -138,7 +140,8 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
         await ws.connect(
             ws_url=web_utils.ws_public_url(self._domain),
-            message_timeout=CONSTANTS.REQUEST_TIMEOUT,
+            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
+            # Public streams should have regular updates, but using ping_timeout for consistency
         )
         return ws
 
@@ -201,7 +204,10 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             return channel
 
         # Check for Backpack's message types
-        message_type = event_message.get("type", "")
+        if "type" not in event_message:
+            # Without type, we can't determine the channel
+            return ""
+        message_type = event_message["type"]
 
         if message_type == CONSTANTS.WS_DEPTH_CHANNEL:
             channel = self._diff_messages_queue_key
@@ -209,7 +215,9 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             channel = self._trade_messages_queue_key
         else:
             # Check data content if type is not clear
-            data = event_message.get("data", {})
+            if "data" not in event_message:
+                return ""
+            data = event_message["data"]
             if "bids" in data or "asks" in data:
                 channel = self._diff_messages_queue_key
             elif "price" in data and "quantity" in data:
@@ -315,20 +323,26 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         # This method handles snapshots placed in queue by _request_order_book_snapshots
         try:
             # If this is a REST snapshot, it will have the structure we expect
-            trading_pair = raw_message.get("trading_pair")
-            if trading_pair:
-                snapshot_message = OrderBookMessage(
-                    message_type=OrderBookMessageType.SNAPSHOT,
-                    content={
-                        "trading_pair": trading_pair,
-                        "update_id": raw_message.get("lastUpdateId", 0),
-                        "bids": raw_message.get("bids", []),
-                        "asks": raw_message.get("asks", []),
-                    },
-                    timestamp=time.time(),
-                )
+            # These are created by _request_order_book_snapshots with guaranteed fields
+            if "trading_pair" not in raw_message:
+                self.logger().error(f"Missing trading_pair in snapshot: {raw_message}")
+                return
 
-                await message_queue.put(snapshot_message)
+            trading_pair = raw_message["trading_pair"]
+
+            # These fields are guaranteed from our own snapshot creation
+            snapshot_message = OrderBookMessage(
+                message_type=OrderBookMessageType.SNAPSHOT,
+                content={
+                    "trading_pair": trading_pair,
+                    "update_id": raw_message["update_id"],
+                    "bids": raw_message["bids"],
+                    "asks": raw_message["asks"],
+                },
+                timestamp=time.time(),
+            )
+
+            await message_queue.put(snapshot_message)
 
         except Exception:
             self.logger().error(
@@ -379,4 +393,3 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             Order book data
         """
         return await self._request_order_book_snapshot(trading_pair)
-

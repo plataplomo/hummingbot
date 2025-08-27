@@ -64,8 +64,7 @@ class BackpackAuth(AuthBase):
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
         # Get full precision timestamp in milliseconds
-        import time as time_module
-        return int(time_module.time() * 1000)
+        return int(time.time() * 1000)
 
     def _generate_signature(self, payload: str) -> str:
         """Generate Ed25519 signature for the given payload.
@@ -294,17 +293,17 @@ class BackpackAuth(AuthBase):
         timestamp = str(self._get_timestamp())
         window = str(CONSTANTS.AUTH_WINDOW_MS)
 
-        # Build auth payload for WebSocket using instruction-based format
-        # For WebSocket auth, the instruction is "subscribe"
+        # Build auth payload for WebSocket
+        # Based on testing, Backpack expects the signature to sign this format
         auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
         signature = self._generate_signature(auth_payload)
 
-        # Per Backpack OpenAPI spec, WebSocket auth uses SUBSCRIBE method with signature array
+        # Backpack WebSocket auth: params array contains [apiKey, signature, timestamp, window]
+        # This is sent as the first SUBSCRIBE message to authenticate
         return {
             "method": "SUBSCRIBE",
-            "params": [],  # Streams will be added separately in subscription messages
-            "signature": [
-                self.api_key,    # verifying key (base64 encoded public key)
+            "params": [
+                self.api_key,    # API key
                 signature,       # signature (base64 encoded)
                 timestamp,       # timestamp in milliseconds
                 window,          # window in milliseconds

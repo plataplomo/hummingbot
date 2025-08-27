@@ -12,6 +12,10 @@ EXCHANGE_NAME = "backpack"
 # Default domain
 DEFAULT_DOMAIN = "backpack"
 
+# Client order ID settings
+HBOT_ORDER_ID_PREFIX = ""  # No prefix needed since we map to numeric IDs
+MAX_ORDER_ID_LEN = 36  # Standard Hummingbot ID length
+
 # Base URLs
 # Backpack does not have a testnet, so we only have mainnet configuration
 REST_URLS = {
@@ -49,8 +53,8 @@ WS_TICKER_CHANNEL = "ticker"  # Full format: ticker.<symbol>
 WS_KLINE_CHANNEL = "kline"  # Full format: kline.<interval>.<symbol>
 
 # Private WebSocket channels
-WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Fixed from "account.orders"
-WS_ACCOUNT_BALANCES_CHANNEL = "account.balanceUpdate"  # Fixed from "account.balances"
+WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Documented in OpenAPI
+# Note: account.balanceUpdate is NOT documented in the OpenAPI - balance updates come through orderUpdate events
 WS_ACCOUNT_POSITIONS_CHANNEL = "account.positionUpdate"  # Note: Not applicable for spot
 WS_ACCOUNT_TRANSACTIONS_CHANNEL = "account.transactionUpdate"  # May not exist in API
 
@@ -95,6 +99,12 @@ RATE_LIMITS = [
     # Account endpoints (private)
     RateLimit(
         limit_id=BALANCES_URL,
+        limit=10,
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=ACCOUNT_URL,
         limit=10,
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
@@ -172,10 +182,10 @@ ORDER_TYPE_MAP = {
     # OrderType.LIMIT_MAKER is not directly supported - use LIMIT with PostOnly timeInForce
 }
 
-# Order sides
+# Order sides - Backpack uses Bid/Ask instead of Buy/Sell
 ORDER_SIDE_MAP = {
-    TradeType.BUY.name: "Buy",
-    TradeType.SELL.name: "Sell",
+    TradeType.BUY.name: "Bid",
+    TradeType.SELL.name: "Ask",
 }
 
 # Time in force
