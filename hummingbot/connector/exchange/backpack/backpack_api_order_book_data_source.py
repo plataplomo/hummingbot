@@ -203,25 +203,29 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         if event_message.get("result") == "success" or event_message.get("type") == "subscribed":
             return channel
 
-        # Check for Backpack's message types
-        if "type" not in event_message:
-            # Without type, we can't determine the channel
-            return ""
-        message_type = event_message["type"]
+        # Backpack uses 'stream' field to identify message type
+        # Format: "depth.SOL_USDC" or "trade.SOL_USDC"
+        stream = event_message.get("stream", "")
 
-        if message_type == CONSTANTS.WS_DEPTH_CHANNEL:
+        if stream.startswith("depth."):
             channel = self._diff_messages_queue_key
-        elif message_type == CONSTANTS.WS_TRADES_CHANNEL:
+        elif stream.startswith("trade."):
             channel = self._trade_messages_queue_key
         else:
-            # Check data content if type is not clear
-            if "data" not in event_message:
-                return ""
-            data = event_message["data"]
-            if "bids" in data or "asks" in data:
-                channel = self._diff_messages_queue_key
-            elif "price" in data and "quantity" in data:
-                channel = self._trade_messages_queue_key
+            # Fallback: Check data.e field for event type
+            if "data" in event_message:
+                data = event_message["data"]
+                event_type = data.get("e", "")
+
+                if event_type == "depth":
+                    channel = self._diff_messages_queue_key
+                elif event_type == "trade":
+                    channel = self._trade_messages_queue_key
+                # Also check for actual content as last resort
+                elif "a" in data or "b" in data:  # 'a' for asks, 'b' for bids
+                    channel = self._diff_messages_queue_key
+                elif "p" in data and "q" in data:  # 'p' for price, 'q' for quantity
+                    channel = self._trade_messages_queue_key
 
         return channel
 
@@ -238,22 +242,25 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         try:
             data = raw_message.get("data", {})
-            exchange_symbol = data.get("symbol")
+
+            # Backpack uses abbreviated field names in WebSocket:
+            # 's' for symbol, 'a' for asks, 'b' for bids, 'T' for timestamp, 'u' for update_id
+            exchange_symbol = data.get("s") or data.get("symbol")
 
             if exchange_symbol:
                 trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
 
                 if trading_pair in self._trading_pairs:
-                    # WebSocket timestamps are in microseconds (new API)
-                    timestamp = data.get("timestamp", time.time() * 1_000_000)
+                    # WebSocket timestamps are in microseconds (field 'T' or 'E')
+                    timestamp = data.get("T", data.get("E", time.time() * 1_000_000))
 
                     order_book_message = OrderBookMessage(
                         message_type=OrderBookMessageType.DIFF,
                         content={
                             "trading_pair": trading_pair,
-                            "update_id": data.get("lastUpdateId", 0),
-                            "bids": data.get("bids", []),
-                            "asks": data.get("asks", []),
+                            "update_id": data.get("u", data.get("U", 0)),  # 'u' or 'U' for update_id
+                            "bids": data.get("b", data.get("bids", [])),   # 'b' for bids
+                            "asks": data.get("a", data.get("asks", [])),   # 'a' for asks
                         },
                         timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
                     )
@@ -279,23 +286,31 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         try:
             data = raw_message.get("data", {})
-            exchange_symbol = data.get("symbol")
+
+            # Backpack uses abbreviated field names in WebSocket:
+            # 's' for symbol, 'p' for price, 'q' for quantity, 't' for trade_id
+            exchange_symbol = data.get("s") or data.get("symbol")
 
             if exchange_symbol:
                 trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
 
                 if trading_pair in self._trading_pairs:
-                    # WebSocket timestamps are in microseconds (new API)
-                    timestamp = data.get("timestamp", time.time() * 1_000_000)
+                    # WebSocket timestamps are in microseconds (field 'T' or 'E')
+                    timestamp = data.get("T", data.get("E", time.time() * 1_000_000))
+
+                    # Determine trade side - 'm' field indicates if buyer is maker
+                    # If m=true, buyer is maker (taker sold), if m=false, seller is maker (taker bought)
+                    is_buyer_maker = data.get("m", False)
+                    trade_type = "SELL" if is_buyer_maker else "BUY"
 
                     trade_message = OrderBookMessage(
                         message_type=OrderBookMessageType.TRADE,
                         content={
                             "trading_pair": trading_pair,
-                            "trade_type": data.get("side", "").upper(),
-                            "trade_id": data.get("tradeId"),
-                            "price": float(data.get("price", 0)),
-                            "amount": float(data.get("quantity", 0)),
+                            "trade_type": trade_type,
+                            "trade_id": data.get("t", data.get("tradeId")),  # 't' for trade_id
+                            "price": float(data.get("p", data.get("price", 0))),  # 'p' for price
+                            "amount": float(data.get("q", data.get("quantity", 0))),  # 'q' for quantity
                         },
                         timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
                     )

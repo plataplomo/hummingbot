@@ -39,8 +39,8 @@ TRADES_URL = "api/v1/trades"
 ORDER_URL = "api/v1/order"
 CANCEL_ORDER_URL = "api/v1/order"
 OPEN_ORDERS_URL = "api/v1/orders"
-ORDER_HISTORY_URL = "api/v1/orderHistory"
-FILLS_URL = "api/v1/fills"
+ORDER_HISTORY_URL = "wapi/v1/history/orders"  # Private endpoint for order history
+FILLS_URL = "wapi/v1/history/fills"  # Private endpoint for fill history
 BALANCES_URL = "api/v1/capital"  # Backpack uses /capital for balance information
 COLLATERAL_URL = "api/v1/capital/collateral"  # Collateral endpoint for auto-lent funds
 ACCOUNT_URL = "api/v1/account"  # Account info endpoint (may contain fee rates)
@@ -193,7 +193,6 @@ TIME_IN_FORCE_MAP = {
     "GTC": "GTC",  # Good Till Cancel
     "IOC": "IOC",  # Immediate or Cancel
     "FOK": "FOK",  # Fill or Kill
-    "PostOnly": "PostOnly",  # Post Only orders (maker only)
 }
 
 # WebSocket message types

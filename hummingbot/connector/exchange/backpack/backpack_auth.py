@@ -53,9 +53,12 @@ class BackpackAuth(AuthBase):
             ("DELETE", "/api/v1/orders"): "orderCancelAll",
             ("GET", "/api/v1/order"): "orderQuery",
             ("GET", "/api/v1/orders"): "orderQueryAll",
-            # Historical Data endpoints
+            # Historical Data endpoints (api/v1)
             ("GET", "/api/v1/history/orders"): "orderHistoryQueryAll",
             ("GET", "/api/v1/history/fills"): "fillHistoryQueryAll",
+            # Historical Data endpoints (wapi/v1) - private endpoints
+            ("GET", "/wapi/v1/history/orders"): "orderHistoryQueryAll",
+            ("GET", "/wapi/v1/history/fills"): "fillHistoryQueryAll",
             # Trading Data endpoints
             ("GET", "/api/v1/trades/history"): "fillHistoryQueryAll",
             ("GET", "/api/v1/fills"): "fillHistoryQueryAll",

@@ -638,11 +638,11 @@ class BackpackExchange(ExchangePyBase):
             "clientId": numeric_client_id,  # Backpack expects integer clientId
         }
 
-        # Handle LIMIT_MAKER by converting to LIMIT with PostOnly
+        # Handle LIMIT_MAKER by converting to LIMIT with postOnly flag
         if order_type == OrderType.LIMIT_MAKER:
             order_data["orderType"] = "Limit"
             order_data["price"] = str(price)
-            order_data["timeInForce"] = "PostOnly"
+            order_data["postOnly"] = True
         elif order_type == OrderType.LIMIT:
             order_data["orderType"] = "Limit"
             order_data["price"] = str(price)  # Price is required for limit orders
