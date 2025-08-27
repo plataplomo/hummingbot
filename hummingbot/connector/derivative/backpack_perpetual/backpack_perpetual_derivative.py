@@ -1626,7 +1626,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Handle exchange_info as list or dict
         symbols_list = exchange_info if isinstance(exchange_info, list) else exchange_info.get("symbols", [])
-        
+
         for symbol_info in symbols_list:
             try:
                 symbol = symbol_info["symbol"]

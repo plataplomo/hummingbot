@@ -203,8 +203,6 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         if event_message.get("result") == "success" or event_message.get("type") == "subscribed":
             return channel
 
-        # Backpack uses 'stream' field to identify message type
-        # Format: "depth.SOL_USDC" or "trade.SOL_USDC"
         stream = event_message.get("stream", "")
 
         if stream.startswith("depth."):

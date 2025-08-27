@@ -2,7 +2,9 @@
 Main exchange class implementing all required trading functionality.
 """
 
+import asyncio
 import json
+import re
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
@@ -228,47 +230,39 @@ class BackpackExchange(ExchangePyBase):
 
     def _is_order_not_found_during_status_update_error(self, status_update_exception: Exception) -> bool:
         """Check if exception indicates order not found during status update."""
-        # Try to parse JSON response properly
-        if hasattr(status_update_exception, "response"):
-            try:
-                response = status_update_exception.response
-                if hasattr(response, "json"):
-                    error_data = response.json()
-                    error_code = error_data["code"]
-                    error_message = error_data["message"].lower()
-                    return (
-                        error_code == CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND
-                        or "order not found" in error_message
-                    )
-            except (AttributeError, ValueError, TypeError):
-                # Fall back to string checking if JSON parsing fails
-                pass
-
-        # Fallback to string checking for non-JSON responses
+        # Check the string representation first
         error_str = str(status_update_exception).lower()
-        return CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND.lower() in error_str or "order not found" in error_str
+
+        # Check for order not found patterns in the error message
+        if "order not found" in error_str or "order does not exist" in error_str:
+            return True
+
+        # Check for specific error codes
+        if CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND.lower() in error_str:
+            return True
+
+        # Try to extract error code from JSON-like string patterns
+        # Look for patterns like {"code": "ORDER_NOT_FOUND"} in the error string
+        code_match = re.search(r'"code"\s*:\s*"([^"]+)"', error_str)
+        return bool(code_match and code_match.group(1).upper() == CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND)
 
     def _is_order_not_found_during_cancelation_error(self, cancelation_exception: Exception) -> bool:
         """Check if exception indicates order not found during cancellation."""
-        # Try to parse JSON response properly
-        if hasattr(cancelation_exception, "response"):
-            try:
-                response = cancelation_exception.response
-                if hasattr(response, "json"):
-                    error_data = response.json()
-                    error_code = error_data["code"]
-                    error_message = error_data["message"].lower()
-                    return (
-                        error_code == CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND
-                        or "order not found" in error_message
-                    )
-            except (AttributeError, ValueError, TypeError):
-                # Fall back to string checking if JSON parsing fails
-                pass
-
-        # Fallback to string checking for non-JSON responses
+        # Check the string representation first
         error_str = str(cancelation_exception).lower()
-        return CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND.lower() in error_str or "order not found" in error_str
+
+        # Check for order not found patterns in the error message
+        if "order not found" in error_str or "order does not exist" in error_str:
+            return True
+
+        # Check for specific error codes
+        if CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND.lower() in error_str:
+            return True
+
+        # Try to extract error code from JSON-like string patterns
+        # Look for patterns like {"code": "ORDER_NOT_FOUND"} in the error string
+        code_match = re.search(r'"code"\s*:\s*"([^"]+)"', error_str)
+        return bool(code_match and code_match.group(1).upper() == CONSTANTS.ERROR_CODE_ORDER_NOT_FOUND)
 
     # API helper methods
     async def _api_get(
@@ -363,22 +357,26 @@ class BackpackExchange(ExchangePyBase):
         url = overwrite_url or web_utils.get_rest_url_for_endpoint(str(path_url), self._domain)
 
         async with self._throttler.execute_task(limit_id=limit_id):
-            response = await rest_assistant.execute_request(
-                url=url,
-                method=method,
-                params=params,
-                data=data,
-                is_auth_required=is_auth_required,
-                headers=headers,
-                throttler_limit_id=limit_id,
+            # Cast response to Any because execute_request can actually return list
+            # despite its type hint only showing Union[str, Dict[str, Any]]
+            response = cast(
+                Any,
+                await rest_assistant.execute_request(
+                    url=url,
+                    method=method,
+                    params=params,
+                    data=data,
+                    is_auth_required=is_auth_required,
+                    headers=headers,
+                    throttler_limit_id=limit_id,
+                ),
             )
 
             # Response from execute_request can be dict, str, or list
             # The REST assistant's execute_request can return list when response.json() is a list
             if isinstance(response, dict):
                 return response
-
-            if isinstance(response, str):
+            elif isinstance(response, str):
                 # Handle string responses by parsing JSON
                 try:
                     parsed = json.loads(response)
@@ -388,10 +386,13 @@ class BackpackExchange(ExchangePyBase):
                     return {"data": parsed}
                 except json.JSONDecodeError as e:
                     return {"error": f"JSON decode failed: {e!s}", "raw": response}
-
-            # Response is a list (when API returns JSON array directly)
-            # Cast to Any to handle the case where execute_request returns a list
-            return {"data": cast(Any, response)}
+            elif isinstance(response, list):
+                # Response is a list (when API returns JSON array directly)
+                # Wrap it in a dict to maintain consistent return type
+                return {"data": response}
+            else:
+                # Fallback for any unexpected type - should not happen in practice
+                return {"error": "Unexpected response type", "data": response}
 
     # Network check
     async def check_network(self) -> NetworkStatus:
@@ -726,7 +727,7 @@ class BackpackExchange(ExchangePyBase):
 
             exchange_symbol = utils.convert_to_exchange_trading_pair(order.trading_pair)
 
-            fills_data = await self._api_get(
+            response = await self._api_get(
                 path_url=CONSTANTS.FILLS_URL,
                 params={
                     "symbol": exchange_symbol,
@@ -736,19 +737,28 @@ class BackpackExchange(ExchangePyBase):
                 limit_id=CONSTANTS.FILLS_URL,
             )
 
-            trade_updates = []
+            trade_updates: list[TradeUpdate] = []
 
-            if "fills" not in fills_data:
-                self.logger().error(f"No fills data in response: {fills_data}")
+            # Since _api_get wraps list responses in {"data": [...]}
+            # we need to extract the actual fills list
+            if "data" in response and isinstance(response["data"], list):
+                fills_data = response["data"]
+            else:
+                self.logger().error(f"Unexpected fills response format: {response}")
                 return []
-            for fill in fills_data["fills"]:
+
+            # If empty list, no fills for this order
+            if not fills_data:
+                return []
+
+            for fill in fills_data:
                 trade_update = TradeUpdate(
                     trade_id=fill["tradeId"],
                     client_order_id=order.client_order_id,
                     exchange_order_id=order.exchange_order_id or "",  # Handle None case
                     trading_pair=order.trading_pair,
-                    # Backpack WebSocket uses microseconds, convert to seconds
-                    fill_timestamp=fill["timestamp"] / 1_000_000 if "timestamp" in fill else self.current_timestamp,
+                    # Backpack fills API returns ISO format timestamps or microseconds
+                    fill_timestamp=utils.parse_fill_timestamp(fill.get("timestamp")),
                     fill_price=Decimal(fill["price"]),
                     fill_base_amount=Decimal(fill["quantity"]),
                     fill_quote_amount=Decimal(fill["quantity"]) * Decimal(fill["price"]),  # Calculate quote amount
@@ -952,14 +962,16 @@ class BackpackExchange(ExchangePyBase):
 
     async def get_last_traded_prices(self, trading_pairs: list[str]) -> dict[str, float]:
         """Get last traded prices for multiple trading pairs."""
-        prices = {}
-        for trading_pair in trading_pairs:
+        async def fetch_price(trading_pair: str) -> tuple[str, float | None]:
             try:
                 price = await self._get_last_traded_price(trading_pair)
-                prices[trading_pair] = price
+                return trading_pair, price
             except Exception as e:
                 self.logger().error(f"Error fetching last price for {trading_pair}: {e}")
-        return prices
+                return trading_pair, None
+
+        results = await asyncio.gather(*[fetch_price(tp) for tp in trading_pairs])
+        return {pair: price for pair, price in results if price is not None}
 
     async def _format_trading_rules(self, exchange_info_dict: dict[str, Any]) -> list[TradingRule]:
         """Format trading rules from exchange info.

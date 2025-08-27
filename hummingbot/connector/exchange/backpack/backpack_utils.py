@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import secrets
 import time
+from datetime import datetime
 from decimal import Decimal
 
 from pydantic import ConfigDict, Field, SecretStr
@@ -293,3 +294,32 @@ def normalize_trading_pair(trading_pair: str) -> str:
         raise ValueError(f"Invalid trading pair format: {trading_pair}")
 
     return trading_pair
+
+
+def parse_fill_timestamp(timestamp: str | int | float | None) -> float:
+    """Parse fill timestamp from various formats.
+
+    Backpack API can return timestamps in different formats:
+    - ISO format string: "2025-08-27T21:53:48.442"
+    - Microseconds as integer: 1756331628442000
+    - Microseconds as string: "1756331628442000"
+
+    Args:
+        timestamp: Timestamp in ISO format, microseconds, or None
+
+    Returns:
+        Timestamp in seconds as float
+    """
+    if timestamp is None:
+        return time.time()
+
+    # If it's a string
+    if isinstance(timestamp, str):
+        if "T" in timestamp:  # ISO format like "2025-08-27T21:53:48.442"
+            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            return dt.timestamp()
+        # Try to parse as microseconds string
+        return int(timestamp) / 1_000_000
+
+    # If it's numeric, assume microseconds
+    return float(timestamp) / 1_000_000

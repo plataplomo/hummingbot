@@ -58,105 +58,112 @@ WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Documented in OpenAPI
 WS_ACCOUNT_POSITIONS_CHANNEL = "account.positionUpdate"  # Note: Not applicable for spot
 WS_ACCOUNT_TRANSACTIONS_CHANNEL = "account.transactionUpdate"  # May not exist in API
 
-# Rate limits based on Backpack documentation
-# Orders: 10 requests per second
+# Rate limits based on official Backpack Discord information:
+# - All endpoints: 1000 requests per minute (16.67 requests per second)
+# - Historical endpoints: 60 requests per 2 minutes (0.5 requests per second)
 # Rate limit pools
 PUBLIC_ENDPOINT_LIMIT_ID = "PublicEndpoints"
 PRIVATE_ENDPOINT_LIMIT_ID = "PrivateEndpoints"
+HISTORICAL_ENDPOINT_LIMIT_ID = "HistoricalEndpoints"
 
-# Cancel: 10 requests per second
-# Public endpoints: 20 requests per second
-# Private account endpoints: 10 requests per second
 RATE_LIMITS = [
-    # Pool limits - Based on Backpack API documentation
-    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1200, time_interval=60),
-    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=100, time_interval=60),
-    # Order management endpoints (private)
+    # Main pool limits - 1000 requests per minute for all endpoints
+    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
+    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
+    # Historical endpoints - 60 requests per 2 minutes
+    RateLimit(limit_id=HISTORICAL_ENDPOINT_LIMIT_ID, limit=60, time_interval=120),
+    # Order management endpoints (private) - share the main 1000/min limit
     RateLimit(
         limit_id=ORDER_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second (1000/60)
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=CANCEL_ORDER_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=OPEN_ORDERS_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=ORDER_HISTORY_URL,
-        limit=10,
-        time_interval=1,
-        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     # Account endpoints (private)
     RateLimit(
         limit_id=BALANCES_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=ACCOUNT_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
-        limit_id=FILLS_URL,
-        limit=10,
-        time_interval=1,
-        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+        limit_id=FILLS_URL,  # /wapi/v1/history/fills is a historical endpoint
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
     ),
-    # Public endpoints
+    # Public endpoints - share the main 1000/min limit
     RateLimit(
         limit_id=PING_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TIME_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=EXCHANGE_INFO_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
-        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)],
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TICKER_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=DEPTH_URL,
-        limit=20,
-        time_interval=1,
-        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)],
-    ),
-    RateLimit(
-        limit_id=KLINES_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=KLINES_URL,  # /api/v1/klines is a historical endpoint (can query with startTime/endTime)
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TRADES_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=COLLATERAL_URL,
+        limit=16,  # ~16.67 requests per second (private endpoint)
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
 ]
 

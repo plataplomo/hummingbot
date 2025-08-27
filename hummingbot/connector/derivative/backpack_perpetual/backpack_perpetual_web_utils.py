@@ -148,7 +148,7 @@ async def get_current_server_time(
                 raise OSError(f"No time field in response: {data}")
             return int(server_time_ms) / 1000.0
         else:
-            return __import__('time').time()
+            return __import__("time").time()
 
 
 async def api_request(
