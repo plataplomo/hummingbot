@@ -144,7 +144,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 "asks": snapshot_data.get("asks", []),
                 "update_id": int(snapshot_data.get("timestamp", 0)),
             },
-            timestamp=snapshot_data.get("timestamp", time.time() * 1000) / 1000.0,
+            # REST depth endpoint returns timestamp in microseconds
+            timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
         )
 
         return snapshot_msg
@@ -175,7 +176,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 "symbol": symbol,
                 "bids": response.get("bids", []),
                 "asks": response.get("asks", []),
-                "timestamp": response.get("timestamp", time.time() * 1000),
+                # REST depth endpoint returns timestamp in microseconds
+                "timestamp": response.get("timestamp", time.time() * 1_000_000),
             }
         # Handle unexpected list format
         return {
@@ -183,7 +185,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             "symbol": symbol,
             "bids": [],
             "asks": [],
-            "timestamp": time.time() * 1000,
+            # Fake timestamp in microseconds for consistency
+            "timestamp": time.time() * 1_000_000,
         }
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
@@ -335,7 +338,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                         else float(TradeType.SELL.value)
                     ),
                 },
-                timestamp=trade_data.get("timestamp", trade_data.get("T", time.time() * 1000)) / 1000.0,
+                # WebSocket T field is in microseconds
+                timestamp=trade_data.get("timestamp", trade_data.get("T", time.time() * 1_000_000)) / 1_000_000,
             )
 
             await message_queue.put(trade_message)
@@ -373,7 +377,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     "update_id": depth_data.get("lastUpdateId", depth_data.get("u", 0)),
                     "first_update_id": depth_data.get("firstUpdateId", depth_data.get("U", 0)),
                 },
-                timestamp=depth_data.get("timestamp", depth_data.get("T", time.time() * 1000)) / 1000.0,
+                # WebSocket T field is in microseconds
+                timestamp=depth_data.get("timestamp", depth_data.get("T", time.time() * 1_000_000)) / 1_000_000,
             )
 
             await message_queue.put(diff_message)
@@ -409,7 +414,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     "asks": snapshot_data.get("asks", []),
                     "update_id": snapshot_data.get("lastUpdateId", 0),
                 },
-                timestamp=snapshot_data.get("timestamp", time.time() * 1000) / 1000.0,
+                # REST depth endpoint returns timestamp in microseconds
+                timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
             )
 
             await message_queue.put(snapshot_message)

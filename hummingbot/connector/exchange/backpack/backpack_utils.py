@@ -296,7 +296,7 @@ def normalize_trading_pair(trading_pair: str) -> str:
     return trading_pair
 
 
-def parse_fill_timestamp(timestamp: str | int | float | None) -> float:
+def parse_fill_timestamp(timestamp: str | float | None) -> float:
     """Parse fill timestamp from various formats.
 
     Backpack API can return timestamps in different formats:

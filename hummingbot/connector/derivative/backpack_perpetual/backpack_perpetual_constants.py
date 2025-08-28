@@ -77,81 +77,86 @@ WS_OPEN_INTEREST_CHANNEL = "openInterest"  # Full format: openInterest.<symbol>
 BROKER_ID = "HBOT"
 MAX_ORDER_ID_LEN = 32
 
-# Rate limiting
+# Rate limiting based on official Backpack Discord information:
+# - All endpoints: 1000 requests per minute (16.67 requests per second)
+# - Historical endpoints: 60 requests per 2 minutes (0.5 requests per second)
 RATE_LIMIT = "RATE_LIMIT"
 PUBLIC_ENDPOINT_LIMIT_ID = "PublicEndpoints"
 PRIVATE_ENDPOINT_LIMIT_ID = "PrivateEndpoints"
+HISTORICAL_ENDPOINT_LIMIT_ID = "HistoricalEndpoints"
 
 RATE_LIMITS = [
-    # Pool limits
-    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1200, time_interval=60),
-    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=100, time_interval=60),
-    # Specific endpoint limits with weighted connections
+    # Main pool limits - 1000 requests per minute for all endpoints
+    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
+    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
+    # Historical endpoints - 60 requests per 2 minutes
+    RateLimit(limit_id=HISTORICAL_ENDPOINT_LIMIT_ID, limit=60, time_interval=120),
+    # Order management endpoints (private) - share the main 1000/min limit
     RateLimit(
         limit_id=ORDER_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second (1000/60)
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=CANCEL_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=POSITIONS_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=FUNDING_RATE_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=BALANCE_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     # Public market data endpoints
     RateLimit(
         limit_id=EXCHANGE_INFO_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TICKER_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=ORDER_BOOK_URL,
-        limit=100,
-        time_interval=60,
-        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)],
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TRADES_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=CANDLES_URL,
-        limit=100,
-        time_interval=60,
-        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TIME_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
 ]
@@ -222,6 +227,9 @@ MARGIN_TYPE_MAP = {
 
 # Request timeouts
 REQUEST_TIMEOUT = 10.0
+
+# Authentication window (5 seconds)
+AUTH_WINDOW_MS = 5000
 
 # WebSocket configuration
 WS_HEARTBEAT_INTERVAL = 30  # Send ping every 30 seconds

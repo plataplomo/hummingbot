@@ -51,7 +51,9 @@ class BackpackExchange(ExchangePyBase):
     - Ed25519 authentication
     """
 
-    UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
+    # Increase interval to respect fills endpoint rate limit (60 requests per 2 minutes)
+    # Setting to 120 seconds ensures we don't hit the rate limit
+    UPDATE_ORDER_STATUS_MIN_INTERVAL = 120.0
     web_utils = cast(Any, web_utils)  # Module assignment for base class
 
     def __init__(
@@ -471,7 +473,7 @@ class BackpackExchange(ExchangePyBase):
 
             trading_pairs = list(trading_pairs_to_order_map.keys())
 
-            # Fetch fills for each trading pair
+            # Fetch fills for each trading pair - the throttler will handle rate limiting
             tasks = []
             for trading_pair in trading_pairs:
                 exchange_symbol = await self.exchange_symbol_associated_to_pair(trading_pair=trading_pair)
@@ -480,11 +482,12 @@ class BackpackExchange(ExchangePyBase):
                         path_url=CONSTANTS.FILLS_URL,
                         params={"symbol": exchange_symbol},
                         is_auth_required=True,
-                        limit_id=CONSTANTS.FILLS_URL,
+                        limit_id=CONSTANTS.FILLS_URL,  # Throttler enforces 1 req per 2 sec
                     ),
                 )
 
             self.logger().debug(f"Polling for order fills of {len(tasks)} trading pairs.")
+            # safe_gather will run async but throttler will serialize based on rate limits
             results = await safe_gather(*tasks, return_exceptions=True)
 
             for result, trading_pair in zip(results, trading_pairs, strict=False):

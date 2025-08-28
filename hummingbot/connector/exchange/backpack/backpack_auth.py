@@ -66,7 +66,7 @@ class BackpackAuth(AuthBase):
 
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
-        # Get full precision timestamp in milliseconds
+
         return int(time.time() * 1000)
 
     def _generate_signature(self, payload: str) -> str:

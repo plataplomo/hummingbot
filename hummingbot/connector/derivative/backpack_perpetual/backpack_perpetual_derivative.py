@@ -90,6 +90,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._leverage_map: dict[str, int] = {}  # Store leverage per trading pair
         self._market_margin_requirements: dict[str, dict[str, Decimal]] = {}  # Store margin requirements per market
         self._funding_info_cache: dict[str, tuple[FundingInfo, float]] = {}  # Cache funding info with timestamp
+        # Initialize ID mapper for client order IDs
+        self._id_mapper = utils.BackpackIDMapper()
         super().__init__(client_config_map)
 
     # Required properties from PerpetualDerivativePyBase
@@ -102,17 +104,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         if self.backpack_perpetual_api_key is None or self.backpack_perpetual_api_secret is None:
             raise ValueError("API key and secret are required for authentication")
 
-        # Convert TimeSynchronizer to a callable that returns int (milliseconds)
-
-        def time_provider() -> int:
-            if self._time_synchronizer:
-                return int(self._time_synchronizer.time() * 1000)
-            return int(time.time() * 1000)  # Fallback to system time
-
         return BackpackPerpetualAuth(
             self.backpack_perpetual_api_key,
             self.backpack_perpetual_api_secret,
-            time_provider,
+            self._time_synchronizer,
         )
 
     @property
@@ -528,15 +523,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         quote_currency: str,
         order_type: OrderType,
         order_side: TradeType,
+        position_action: PositionAction,
         amount: Decimal,
         price: Decimal = s_decimal_NaN,
         is_maker: bool | None = None,
-        position_action: PositionAction | None = None,
     ) -> TradeFeeBase:
         is_maker = is_maker or (order_type == OrderType.LIMIT_MAKER)
-        # Use default position action if not provided
-        if position_action is None:
-            position_action = PositionAction.OPEN
 
         fee = build_perpetual_trade_fee(
             self.name,
@@ -866,33 +858,42 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         **kwargs,
     ) -> tuple[str, float]:
         """Place an order on Backpack perpetual."""
-        _ = kwargs  # Future extension point
         symbol = utils.convert_to_exchange_trading_pair(trading_pair)
+
+        # Convert Hummingbot string ID to Backpack numeric ID
+        numeric_client_id = self._id_mapper.get_numeric_id(order_id)
 
         # Determine if this is a reduce-only order
         reduce_only = position_action == PositionAction.CLOSE
 
         order_data = {
             "symbol": symbol,
-            "side": self.backpack_order_side(trade_type),
-            "orderType": self.backpack_order_type(order_type),
+            "side": utils.backpack_order_side(trade_type),
             "quantity": str(amount),
-            "clientId": order_id,
+            "clientId": numeric_client_id,  # Backpack expects integer clientId
         }
 
         # Add reduce-only flag for closing positions
         if reduce_only:
-            order_data["reduceOnly"] = "true"
+            order_data["reduceOnly"] = True  # Use boolean, not string
 
-        # Add price for limit orders
-        if order_type == OrderType.LIMIT or order_type == OrderType.LIMIT_MAKER:
+        # Handle LIMIT_MAKER by converting to LIMIT with postOnly flag
+        if order_type == OrderType.LIMIT_MAKER:
+            order_data["orderType"] = "Limit"
             order_data["price"] = str(price)
-
-        # Set time in force based on order type
-        if order_type == OrderType.LIMIT:
-            order_data["timeInForce"] = "GTC"  # Good Till Cancelled for regular limit orders
-        elif order_type == OrderType.LIMIT_MAKER:
-            order_data["timeInForce"] = "PostOnly"  # PostOnly for maker-only orders
+            order_data["postOnly"] = True
+        elif order_type == OrderType.LIMIT:
+            order_data["orderType"] = "Limit"
+            order_data["price"] = str(price)
+            # Add time in force if specified
+            time_in_force = kwargs.get("time_in_force")
+            if time_in_force:
+                # Time in force must be in the map
+                if time_in_force not in CONSTANTS.TIME_IN_FORCE_MAP:
+                    raise ValueError(f"Invalid time in force: {time_in_force}")
+                order_data["timeInForce"] = CONSTANTS.TIME_IN_FORCE_MAP[time_in_force]
+        else:  # MARKET order
+            order_data["orderType"] = "Market"
 
         response = await self._api_post(
             path_url=CONSTANTS.ORDER_URL,
@@ -918,10 +919,11 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     "orderId": tracked_order.exchange_order_id,
                 }
             else:
-                # Fall back to client order ID
+                # Fall back to client order ID - convert to numeric
+                numeric_client_id = self._id_mapper.get_numeric_id(order_id)
                 params = {
                     "symbol": symbol,
-                    "clientId": order_id,
+                    "clientId": str(numeric_client_id),  # Convert to string for params
                 }
 
             await self._api_delete(
@@ -1310,7 +1312,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 client_order_id=tracked_order.client_order_id,
                 exchange_order_id=exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
-                fill_timestamp=(fill_data.get("timestamp") or self.current_timestamp * 1000) / 1000,
+                # Fill timestamps are in microseconds
+                fill_timestamp=(fill_data.get("timestamp") or self.current_timestamp * 1_000_000) / 1_000_000,
                 fill_price=Decimal(str(fill_data["price"])),  # Required field
                 fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
                 fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
@@ -1379,7 +1382,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         trade_type=trade_type,
                         price=price,
                         amount=quantity,
-                        creation_timestamp=float(order_data.get("timestamp", self.current_timestamp * 1000)) / 1000,
+                        # WebSocket timestamps are in microseconds
+                        creation_timestamp=(
+                            float(order_data.get("timestamp", self.current_timestamp * 1_000_000)) / 1_000_000
+                        ),
                     )
                     self._order_tracker.start_tracking_order(order)
                     tracked_order = order
@@ -1395,7 +1401,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 client_order_id=client_order_id,
                 exchange_order_id=order_data.get("id") or order_data.get("orderId"),  # Handle both formats
                 trading_pair=tracked_order.trading_pair,
-                update_timestamp=(order_data.get("timestamp") or self.current_timestamp * 1000) / 1000,
+                # WebSocket timestamps are in microseconds
+                update_timestamp=(order_data.get("timestamp") or self.current_timestamp * 1_000_000) / 1_000_000,
                 new_state=new_state,
             )
 
@@ -1616,7 +1623,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         return trading_rules
 
-    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: dict[str, Any]):
+    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: dict[str, Any] | list[dict[str, Any]]):
         """Initialize the trading pair symbol mapping from exchange info.
 
         Args:
@@ -1625,7 +1632,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         mapping = {}
 
         # Handle exchange_info as list or dict
-        symbols_list = exchange_info if isinstance(exchange_info, list) else exchange_info.get("symbols", [])
+        symbols_list: list[dict[str, Any]] = (
+            exchange_info if isinstance(exchange_info, list) else exchange_info.get("symbols", [])
+        )
 
         for symbol_info in symbols_list:
             try:
