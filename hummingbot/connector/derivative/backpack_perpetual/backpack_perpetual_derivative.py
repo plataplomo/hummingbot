@@ -2,10 +2,11 @@
 Main derivative class implementing perpetual futures trading functionality.
 """
 
+import math
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from hummingbot.client.config.trade_fee_schema_loader import TradeFeeSchemaLoader
 from hummingbot.connector.constants import s_decimal_NaN
@@ -60,6 +61,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     SHORT_POLL_INTERVAL = 5.0
     UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
     LONG_POLL_INTERVAL = 120.0
+    web_utils = cast(Any, web_utils)  # Module assignment for base class
 
     def __init__(
         self,
@@ -280,12 +282,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
 
         Returns:
-            Exchange symbol format (e.g., "BTC_PERP")
+            Exchange symbol format (e.g., "BTC_USDC_PERP")
         """
-        # For perpetuals, Backpack uses format like "BTC_PERP"
-        # Extract base asset from trading pair (remove quote asset)
-        base_asset = trading_pair.split("-", maxsplit=1)[0]
-        return f"{base_asset}_PERP"
+        # Use the proper conversion function from utils
+        return utils.convert_to_exchange_trading_pair(trading_pair)
 
     # Helper methods for order and trade type conversion
     @staticmethod
@@ -373,27 +373,45 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     def _create_user_stream_data_source(self) -> UserStreamTrackerDataSource:
         return BackpackPerpetualUserStreamDataSource(
-            auth=self.authenticator,  # Use the property that returns BackpackPerpetualAuth
+            auth=cast(BackpackPerpetualAuth, self.authenticator),
             connector=self,
             api_factory=self._web_assistants_factory,
             domain=self.domain,
         )
 
+    def _is_user_stream_initialized(self) -> bool:
+        """Check if user stream is initialized.
+
+        For Backpack, we consider the stream initialized if we have a data source,
+        regardless of whether messages have been received yet, since the private
+        stream may not send messages until there are actual order updates.
+        """
+        return (
+            self._user_stream_tracker is not None
+            and self._user_stream_tracker.data_source is not None
+        ) or not self.is_trading_required
+
     async def _status_polling_loop_fetch_updates(self):
         """Fetch updates for the status polling loop.
         This method is called periodically to update order status and positions.
         """
-        # Update positions for perpetual trading
-        await self._update_positions()
-        # Update order fills from trades if needed
-        await self._update_order_fills_from_trades()
-        # Call parent implementation
+        try:
+            # Update order fills from trades if needed
+            await self._update_order_fills_from_trades()
+        except Exception as e:
+            self.logger().error(f"Error in _update_order_fills_from_trades: {e}", exc_info=True)
+
+        # Call parent implementation which updates positions, balances, and orders
         await super()._status_polling_loop_fetch_updates()
 
     async def _update_order_fills_from_trades(self):
         """Update order fills from recent trades.
         This is used to ensure we capture all fills even if WebSocket messages are missed.
         """
+        # Initialize _last_poll_timestamp if it's 0 and we have a valid timestamp
+        if self._last_poll_timestamp == 0 and not math.isnan(self.current_timestamp):
+            self._last_poll_timestamp = self.current_timestamp
+
         last_tick = int(self._last_poll_timestamp / self.UPDATE_ORDER_STATUS_MIN_INTERVAL)
         current_tick = int(self.current_timestamp / self.UPDATE_ORDER_STATUS_MIN_INTERVAL)
 
@@ -589,6 +607,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self,
         path_url: str,
         params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,  # Add data parameter
         is_auth_required: bool = True,
         limit_id: str | None = None,
     ) -> dict[str, Any]:
@@ -600,6 +619,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             time_synchronizer=self._time_synchronizer,
             domain=self._domain,
             params=params,
+            data=data,  # Pass data to api_request
             method=RESTMethod.DELETE,
             is_auth_required=is_auth_required,
             limit_id=limit_id,
@@ -615,7 +635,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         trading_rules = {}
 
-        for market_info in response.get("symbols", []):
+        # The /api/v1/markets endpoint returns a list directly, not a dict
+        markets = response if isinstance(response, list) else response.get("symbols", [])
+
+        for market_info in markets:
             try:
                 # Only process perpetual markets
                 if not utils.is_perpetual_symbol(market_info["symbol"]):
@@ -674,31 +697,54 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         self._trading_rules = trading_rules
 
+        # Initialize trading pair symbols mapping (required for connector readiness)
+        self._initialize_trading_pair_symbols_from_exchange_info(response)
+
     # Balance and position management
     async def _update_balances(self):
-        """Update account balances.
+        """Update account balances using collateral endpoint as single source of truth.
 
-        According to OpenAPI spec, the response format is:
-        {"USDC": {"available": "0", "locked": "0", "staked": "0"}, ...}
+        For perpetuals, we use the collateral endpoint just like the spot connector
+        because it includes auto-lent funds which are available for trading.
         """
-        response = await self._api_get(
-            path_url=CONSTANTS.BALANCE_URL,
-            is_auth_required=True,
-        )
+        try:
+            self.logger().debug("Fetching balances from collateral endpoint")
+            # Get collateral balances - this includes everything (spot + auto-lent)
+            collateral_data = await self._api_get(
+                path_url=CONSTANTS.COLLATERAL_URL,
+                is_auth_required=True,
+            )
+            self.logger().debug(f"Collateral data received: {collateral_data}")
 
-        self._account_available_balances.clear()
-        self._account_balances.clear()
+            # Check if we got valid data
+            if not collateral_data or "collateral" not in collateral_data:
+                self.logger().error(f"Invalid collateral data received: {collateral_data}")
+                return
 
-        # Response format per OpenAPI spec: {"ASSET": {"available": "0", "locked": "0", "staked": "0"}}
-        for asset, balance_info in response.items():
-            if isinstance(balance_info, dict):
-                available = Decimal(str(balance_info["available"]))
-                locked = Decimal(str(balance_info["locked"]))
-                # Note: staked is in the response but not used for trading
-                total = available + locked
+            # Initialize balance dictionaries
+            self._account_balances.clear()
+            self._account_available_balances.clear()
 
-                self._account_available_balances[asset] = available
-                self._account_balances[asset] = total
+            # Use collateral endpoint as the single source of truth
+            # It already includes both spot and auto-lent balances
+            for asset_info in collateral_data["collateral"]:
+                symbol = asset_info["symbol"]
+                total_quantity = Decimal(asset_info["totalQuantity"])
+                available_quantity = Decimal(asset_info["availableQuantity"])
+                lend_quantity = Decimal(asset_info.get("lendQuantity", "0"))
+
+                # Total balance is totalQuantity
+                self._account_balances[symbol] = total_quantity
+
+                # Lent funds are ALWAYS available for trading on Backpack
+                # When you place an order, Backpack automatically unlends what's needed
+                # So we add lendQuantity to availableQuantity to get true available balance
+                self._account_available_balances[symbol] = available_quantity + lend_quantity
+
+            self.logger().info(f"Updated balances: {self._account_balances}")
+        except Exception as e:
+            self.logger().error(f"Failed to update balances: {e}", exc_info=True)
+            # Don't re-raise - similar to other perp connectors
 
     async def _update_positions(self):
         """Update open positions."""
@@ -912,23 +958,24 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
 
         try:
-            # Try to cancel by exchange order ID if available
+            # Prepare cancel data - must use data not params for Backpack DELETE endpoint
+            cancel_data: dict[str, Any]
             if tracked_order.exchange_order_id:
-                params = {
+                cancel_data = {
                     "symbol": symbol,
                     "orderId": tracked_order.exchange_order_id,
                 }
             else:
                 # Fall back to client order ID - convert to numeric
                 numeric_client_id = self._id_mapper.get_numeric_id(order_id)
-                params = {
+                cancel_data = {
                     "symbol": symbol,
-                    "clientId": str(numeric_client_id),  # Convert to string for params
+                    "clientId": numeric_client_id,  # Backpack accepts int in JSON body
                 }
 
             await self._api_delete(
                 path_url=CONSTANTS.CANCEL_URL,
-                params=params,
+                data=cancel_data,  # Pass as body data, not params
                 is_auth_required=True,
             )
 
@@ -1489,6 +1536,20 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     async def _update_trading_fees(self):
         """Update trading fees from the exchange."""
+        # Ensure time is synchronized before making authenticated requests
+        if self._time_synchronizer and (
+            not hasattr(self._time_synchronizer, "_time_offset_ms") or not self._time_synchronizer._time_offset_ms
+        ):
+            try:
+                await self._time_synchronizer.update_server_time_offset_with_time_provider(
+                    time_provider=web_utils.get_current_server_time(
+                        throttler=self._throttler,
+                        domain=self._domain,
+                    ),
+                )
+            except Exception as e:
+                self.logger().warning(f"Failed to sync time: {e}")
+
         # Try to fetch fees from account endpoint if available
         try:
             account_info = await self._api_get(

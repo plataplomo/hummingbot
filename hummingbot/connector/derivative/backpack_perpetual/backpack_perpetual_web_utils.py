@@ -152,7 +152,8 @@ async def get_current_server_time(
             server_time_ms = response.get("serverTime", response.get("timestamp"))
             if server_time_ms is None:
                 raise OSError(f"No time field in response: {response}")
-            return int(server_time_ms) / 1000.0
+            # TimeSynchronizer expects milliseconds, don't divide
+            return float(server_time_ms)
 
         # Fallback to current time in milliseconds
         return time.time() * 1000
@@ -228,6 +229,7 @@ async def api_request(
                 data=data,
                 headers=headers,
                 timeout=timeout,
+                is_auth_required=is_auth_required,
             )
 
             # Response could be str or dict from execute_request

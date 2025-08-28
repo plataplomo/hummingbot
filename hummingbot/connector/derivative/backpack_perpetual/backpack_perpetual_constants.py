@@ -46,6 +46,7 @@ FILLS_URL = "api/v1/fills"
 
 # Account endpoints
 BALANCE_URL = "api/v1/capital"
+COLLATERAL_URL = "api/v1/capital/collateral"  # For getting full balance info including auto-lent
 ACCOUNT_URL = "api/v1/account"
 
 # Perpetual-specific private endpoints

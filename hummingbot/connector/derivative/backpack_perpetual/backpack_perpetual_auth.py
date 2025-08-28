@@ -4,8 +4,9 @@ Reuses the same authentication logic as the spot connector.
 
 import base64
 import json
+import logging
 import time
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -14,6 +15,7 @@ from hummingbot.connector.derivative.backpack_perpetual import backpack_perpetua
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
+from hummingbot.logger import HummingbotLogger
 
 
 class BackpackPerpetualAuth(AuthBase):
@@ -28,6 +30,14 @@ class BackpackPerpetualAuth(AuthBase):
     - X-Signature: Ed25519 signature of payload
     - X-Window: Request validity window (5000ms)
     """
+
+    _logger = None
+
+    @classmethod
+    def logger(cls) -> HummingbotLogger:
+        if cls._logger is None:
+            cls._logger = cast(HummingbotLogger, logging.getLogger(HummingbotLogger.logger_name_for_class(cls)))
+        return cls._logger
 
     def __init__(
         self,
@@ -59,6 +69,7 @@ class BackpackPerpetualAuth(AuthBase):
             ("GET", "/api/v1/account"): "accountQuery",
             # Capital and Balance endpoints
             ("GET", "/api/v1/capital"): "balanceQuery",
+            ("GET", "/api/v1/capital/collateral"): "collateralQuery",
             # Position endpoints for perpetuals
             ("GET", "/api/v1/position"): "positionQuery",
             # Order Management endpoints
@@ -73,13 +84,14 @@ class BackpackPerpetualAuth(AuthBase):
             # Trading Data endpoints
             ("GET", "/api/v1/trades/history"): "fillHistoryQueryAll",
             ("GET", "/api/v1/fills"): "fillHistoryQueryAll",
+            # Funding history endpoints (for perpetuals)
+            ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
         }
 
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
-        # Use time_provider if available, otherwise fall back to time.time()
-        if self.time_provider:
-            return int(self.time_provider.time() * 1000)
+        # Backpack expects current Unix timestamp in milliseconds
+        # Just like the spot connector, we use time.time() directly
         return int(time.time() * 1000)
 
     def _generate_signature(self, payload: str) -> str:

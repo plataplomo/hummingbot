@@ -122,25 +122,20 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str | None
 def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     """Convert Hummingbot format to Backpack exchange format.
 
-    For perpetuals with standard quote currency:
-    - BTC-USDC -> BTC_PERP
-    - SOL-USDC -> SOL_PERP
-    - ETH-USDC -> ETH_PERP
-
-    For other quote currencies, the full format would be used (e.g., BTC-USD -> BTC_USD_PERP)
+    For perpetuals:
+    - BTC-USDC -> BTC_USDC_PERP
+    - SOL-USDC -> SOL_USDC_PERP
+    - ETH-USDC -> ETH_USDC_PERP
 
     Args:
         hb_trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
 
     Returns:
-        Backpack formatted trading pair (e.g., "BTC_PERP")
+        Backpack formatted trading pair (e.g., "BTC_USDC_PERP")
     """
     base, quote = split_trading_pair(hb_trading_pair)
 
-    # For USDC perpetuals, use simplified format (e.g., BTC_PERP)
-    if quote == "USDC":
-        return f"{base}_PERP"
-    # For other quote currencies, use full format
+    # All perpetuals use full format with quote currency
     return f"{base}_{quote}_PERP"
 
 

@@ -83,7 +83,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
                         continue
                     self._last_recv_time = self._time()
 
-                    data = json.loads(ws_response.data)
+                    # Handle both string and dict responses
+                    if isinstance(ws_response.data, dict):
+                        data = ws_response.data
+                    else:
+                        data = json.loads(ws_response.data)
 
                     # Process different message types
                     processed_message = self._process_event(data)
