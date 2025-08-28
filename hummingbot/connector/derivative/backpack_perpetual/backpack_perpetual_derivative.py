@@ -654,7 +654,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     min_notional = Decimal(str(min_notional))
 
                 # Get collateral token from API response (required field)
-                collateral_token = market_info["quoteCurrency"]
+                collateral_token = market_info["quoteSymbol"]
 
                 # Create trading rule
                 trading_rule = TradingRule(
@@ -1556,7 +1556,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     min_notional = Decimal(str(min_notional))
 
                 # Get collateral token from symbol info (required field)
-                collateral_token = symbol_info["quoteCurrency"]
+                collateral_token = symbol_info["quoteSymbol"]
 
                 # Extract margin and leverage data from API
                 max_leverage = symbol_info.get("maxLeverage")
@@ -1624,15 +1624,18 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         mapping = {}
 
-        for symbol_info in exchange_info.get("symbols", []):
+        # Handle exchange_info as list or dict
+        symbols_list = exchange_info if isinstance(exchange_info, list) else exchange_info.get("symbols", [])
+
+        for symbol_info in symbols_list:
             try:
                 symbol = symbol_info["symbol"]
                 if "_PERP" not in symbol:
                     continue
 
-                # Extract base and quote from symbol (e.g., BTC_PERP -> BTC-USDC)
-                base = symbol.replace("_PERP", "")
-                quote = symbol_info["quoteCurrency"]
+                # Get base and quote from API response
+                base = symbol_info["baseSymbol"]
+                quote = symbol_info["quoteSymbol"]
 
                 trading_pair = f"{base}-{quote}"
                 mapping[symbol] = trading_pair

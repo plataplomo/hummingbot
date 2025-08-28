@@ -146,8 +146,16 @@ async def get_current_server_time(
 
         if response.status == 200:
             data = await response.json()
-            # Backpack returns server time in milliseconds
-            return data.get("serverTime", time.time() * 1000) / 1000
+            # Backpack may return server time in different formats
+            if isinstance(data, dict):
+                # Standard format with serverTime key
+                return data.get("serverTime", time.time() * 1000) / 1000
+            elif isinstance(data, (int, float)):
+                # Direct timestamp format (already in milliseconds)
+                return data / 1000
+            else:
+                # Fallback for unexpected format
+                return time.time()
         # Fallback to local time if server time not available
         return time.time()
 

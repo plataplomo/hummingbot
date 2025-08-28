@@ -139,12 +139,16 @@ async def get_current_server_time(
         else:
             data = response
 
-        # Backpack returns time in milliseconds
-        server_time_ms = data.get("serverTime", data.get("timestamp"))
-        if server_time_ms is None:
-            raise OSError(f"No time field in response: {data}")
-
-        return int(server_time_ms) / 1000.0  # Convert to seconds
+        # Backpack returns direct integer timestamp in milliseconds
+        if isinstance(data, (int, float)):
+            return data / 1000.0
+        elif isinstance(data, dict):
+            server_time_ms = data.get("serverTime", data.get("timestamp"))
+            if server_time_ms is None:
+                raise OSError(f"No time field in response: {data}")
+            return int(server_time_ms) / 1000.0
+        else:
+            return __import__("time").time()
 
 
 async def api_request(

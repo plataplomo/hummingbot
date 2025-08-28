@@ -13,6 +13,11 @@ from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
 from . import backpack_perpetual_constants as CONSTANTS
 
+
+# Required constants for AllConnectorSettings
+CENTRALIZED = True
+EXAMPLE_PAIR = "BTC-USD"
+
 # Backpack uses underscore format for symbols
 TRADING_PAIR_SPLITTER = "_"
 
@@ -321,6 +326,9 @@ class BackpackPerpetualConfigMap(BaseConnectorConfigMap):
 
     class Config:
         title = "backpack_perpetual"
+
+
+KEYS = BackpackPerpetualConfigMap.model_construct()
 
 
 # Order type validation

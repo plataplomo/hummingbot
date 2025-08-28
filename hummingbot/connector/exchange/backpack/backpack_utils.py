@@ -6,6 +6,50 @@ from __future__ import annotations
 
 import secrets
 import time
+from datetime import datetime
+from decimal import Decimal
+
+from pydantic import ConfigDict, Field, SecretStr
+
+from hummingbot.client.config.config_data_types import BaseConnectorConfigMap
+from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
+from hummingbot.core.data_type.common import OrderType, TradeType
+from hummingbot.core.data_type.trade_fee import TradeFeeSchema
+
+CENTRALIZED = True
+EXAMPLE_PAIR = "BTC-USD"
+
+DEFAULT_FEES = TradeFeeSchema(
+    maker_percent_fee_decimal=Decimal("0.0008"),  # 0.08% maker fee
+    taker_percent_fee_decimal=Decimal("0.0010"),  # 0.10% taker fee
+    buy_percent_fee_deducted_from_returns=True,
+)
+
+
+class BackpackConfigMap(BaseConnectorConfigMap):
+    connector: str = "backpack"
+    backpack_api_key: SecretStr = Field(
+        default=...,
+        json_schema_extra={
+            "prompt": lambda cm: "Enter your Backpack API key",
+            "is_secure": True,
+            "is_connect_key": True,
+            "prompt_on_new": True,
+        },
+    )
+    backpack_api_secret: SecretStr = Field(
+        default=...,
+        json_schema_extra={
+            "prompt": lambda cm: "Enter your Backpack API secret",
+            "is_secure": True,
+            "is_connect_key": True,
+            "prompt_on_new": True,
+        },
+    )
+    model_config = ConfigDict(title="backpack")
+
+
+KEYS = BackpackConfigMap.model_construct()
 
 
 def split_trading_pair(trading_pair: str) -> tuple[str, str]:
@@ -45,6 +89,43 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str:
     return exchange_trading_pair.replace("_", "-")
 
 
+def backpack_order_type(order_type: OrderType) -> str:
+    """Convert Hummingbot order type to Backpack format.
+
+    Args:
+        order_type: Hummingbot OrderType
+
+    Returns:
+        Backpack order type string
+    """
+    return CONSTANTS.ORDER_TYPE_MAP.get(order_type.name, order_type.name)
+
+
+def to_hb_order_type(backpack_type: str) -> OrderType:
+    """Convert Backpack order type to Hummingbot format.
+
+    Args:
+        backpack_type: Backpack order type string
+
+    Returns:
+        Hummingbot OrderType
+    """
+    type_map = {v: k for k, v in CONSTANTS.ORDER_TYPE_MAP.items()}
+    return OrderType[type_map.get(backpack_type, backpack_type)]
+
+
+def backpack_order_side(trade_type: TradeType) -> str:
+    """Convert Hummingbot trade type to Backpack format.
+
+    Args:
+        trade_type: Hummingbot TradeType
+
+    Returns:
+        Backpack side string (Bid/Ask)
+    """
+    return CONSTANTS.ORDER_SIDE_MAP.get(trade_type.name, trade_type.name)
+
+
 def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     """Convert trading pair from Hummingbot format to Backpack exchange format.
 
@@ -63,32 +144,58 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     return hb_trading_pair.replace("-", "_")
 
 
-def get_new_client_order_id(is_buy: bool, trading_pair: str) -> str:
-    """Generate a new client order ID for Backpack.
+class BackpackIDMapper:
+    """Handles bidirectional mapping between Hummingbot string IDs and Backpack numeric IDs.
 
-    Args:
-        is_buy: Whether this is a buy order
-        trading_pair: Trading pair for the order
-
-    Returns:
-        Client order ID string
+    Backpack requires integer clientId (uint32), while Hummingbot uses string IDs.
+    This class maintains the mapping between the two systems.
     """
-    side = "B" if is_buy else "S"
-    base_asset, _ = split_trading_pair(trading_pair)
-    timestamp = int(time.time() * 1000)
-    random_suffix = secrets.randbelow(900) + 100  # Random between 100-999
 
-    # Format: HBOT-{SIDE}{BASE}{TIMESTAMP}{RANDOM}
-    # Keep within MAX_ORDER_ID_LEN limit from constants
-    client_id = f"HBOT-{side}{base_asset}{timestamp}{random_suffix}"
+    def __init__(self):
+        """Initialize the ID mapper with empty mappings."""
+        self._hb_to_numeric: dict[str, int] = {}
+        self._numeric_to_hb: dict[int, str] = {}
 
-    # Truncate if too long (should not happen with reasonable asset names)
-    # MAX_ORDER_ID_LEN is typically 36 characters
-    max_order_id_len = 36
-    if len(client_id) > max_order_id_len:
-        client_id = client_id[:max_order_id_len]
+    def get_numeric_id(self, hb_order_id: str) -> int:
+        """Convert Hummingbot string order ID to Backpack numeric ID.
 
-    return client_id
+        Args:
+            hb_order_id: Hummingbot's string order ID
+
+        Returns:
+            Numeric ID for Backpack API
+        """
+        if hb_order_id not in self._hb_to_numeric:
+            # Generate a numeric client ID that fits in uint32 (max value: 4294967295)
+            # Use timestamp in milliseconds modulo to fit in range
+            # Add random component for uniqueness within the same millisecond
+            timestamp_component = int(time.time() * 1000) % 1000000000  # Keep under 1 billion
+            random_component = secrets.randbelow(1000)  # 0-999
+
+            # Combine timestamp and random, ensuring we stay under uint32 max
+            numeric_id = (timestamp_component * 1000 + random_component) % 4294967296
+
+            # Store bidirectional mapping
+            self._hb_to_numeric[hb_order_id] = numeric_id
+            self._numeric_to_hb[numeric_id] = hb_order_id
+
+        return self._hb_to_numeric[hb_order_id]
+
+    def get_hb_id(self, numeric_id: int) -> str | None:
+        """Convert Backpack numeric ID back to Hummingbot string order ID.
+
+        Args:
+            numeric_id: Backpack's numeric client ID
+
+        Returns:
+            Hummingbot's string order ID, or None if not found
+        """
+        return self._numeric_to_hb.get(numeric_id)
+
+    def clear(self):
+        """Clear all mappings."""
+        self._hb_to_numeric.clear()
+        self._numeric_to_hb.clear()
 
 
 def is_exchange_information_valid(exchange_info: dict) -> bool:
@@ -100,20 +207,20 @@ def is_exchange_information_valid(exchange_info: dict) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    if not isinstance(exchange_info, dict) or "symbols" not in exchange_info:
+    if not isinstance(exchange_info, dict) or "data" not in exchange_info:
         return False
 
     # Validate symbols structure
-    symbols = exchange_info.get("symbols", [])
+    symbols = exchange_info["data"]  # Already checked in earlier validation
     if not isinstance(symbols, list):
         return False
 
     if len(symbols) == 0:
         return False
 
-    # Check first symbol has required fields
+    # Check first symbol has required fields (new API structure)
     first_symbol = symbols[0]
-    required_symbol_fields = ["symbol", "baseAsset", "quoteAsset", "status"]
+    required_symbol_fields = ["symbol", "baseSymbol", "quoteSymbol", "marketType"]
     return all(field in first_symbol for field in required_symbol_fields)
 
 
@@ -187,3 +294,32 @@ def normalize_trading_pair(trading_pair: str) -> str:
         raise ValueError(f"Invalid trading pair format: {trading_pair}")
 
     return trading_pair
+
+
+def parse_fill_timestamp(timestamp: str | int | float | None) -> float:
+    """Parse fill timestamp from various formats.
+
+    Backpack API can return timestamps in different formats:
+    - ISO format string: "2025-08-27T21:53:48.442"
+    - Microseconds as integer: 1756331628442000
+    - Microseconds as string: "1756331628442000"
+
+    Args:
+        timestamp: Timestamp in ISO format, microseconds, or None
+
+    Returns:
+        Timestamp in seconds as float
+    """
+    if timestamp is None:
+        return time.time()
+
+    # If it's a string
+    if isinstance(timestamp, str):
+        if "T" in timestamp:  # ISO format like "2025-08-27T21:53:48.442"
+            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            return dt.timestamp()
+        # Try to parse as microseconds string
+        return int(timestamp) / 1_000_000
+
+    # If it's numeric, assume microseconds
+    return float(timestamp) / 1_000_000

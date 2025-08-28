@@ -58,12 +58,14 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         self._connector = connector
         self._api_factory = api_factory
         self._domain = domain
-        self._last_recv_time = 0.0
+        self._ws_assistant: WSAssistant | None = None
 
     @property
     def last_recv_time(self) -> float:
         """Get timestamp of last received message."""
-        return self._last_recv_time
+        if self._ws_assistant:
+            return self._ws_assistant.last_recv_time
+        return 0
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """Create and connect WebSocket assistant for private streams.
@@ -74,7 +76,8 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
         await ws.connect(
             ws_url=web_utils.ws_private_url(self._domain),
-            message_timeout=CONSTANTS.REQUEST_TIMEOUT,
+            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
+            # No message_timeout for user streams - we may not receive messages for extended periods
         )
 
         # Authenticate the WebSocket connection
@@ -91,41 +94,11 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         Returns:
             True if authentication successful, False otherwise
         """
-        try:
-            # Get authentication message from auth instance
-            auth_message = self._auth.get_ws_auth_message()
-            auth_request = WSJSONRequest(payload=auth_message)
-
-            # Send authentication message
-            await ws.send(auth_request)
-
-            # Wait for authentication response
-            auth_response = await asyncio.wait_for(
-                ws.receive(),
-                timeout=CONSTANTS.REQUEST_TIMEOUT,
-            )
-
-            # Parse response
-            if auth_response is None or auth_response.data is None:
-                self.logger().error("No authentication response received")
-                return False
-            response_data = json.loads(auth_response.data)
-
-            if response_data.get("type") == "auth":
-                if response_data.get("success"):
-                    self.logger().info("WebSocket authentication successful")
-                    return True
-                error_msg = response_data.get("error", "Unknown authentication error")
-                self.logger().error(f"WebSocket authentication failed: {error_msg}")
-                return False
-
-            # If we don't get an auth response, assume success for now
-            self.logger().info("WebSocket connected, assuming authentication successful")
-            return True
-
-        except Exception:
-            self.logger().error("Error during WebSocket authentication", exc_info=True)
-            return False
+        # For Backpack, authentication happens with the subscription message
+        # We don't send a separate auth message
+        # Authentication params are included with each private channel subscription
+        self.logger().info("WebSocket connected, authentication will happen with subscription")
+        return True
 
     async def _subscribe_channels(self, ws: WSAssistant):
         """Subscribe to private WebSocket channels.
@@ -134,27 +107,65 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             ws: Authenticated WebSocket assistant
         """
         try:
-            # Subscribe to account channels
+            # For Backpack, authentication and subscription are combined
+            # We need to send auth params with each private channel subscription
+            timestamp = str(int(time.time() * 1000))
+            window = str(CONSTANTS.AUTH_WINDOW_MS)
+
+            # Build auth payload
+            auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
+            signature = self._auth._generate_signature(auth_payload)
+
+            # Subscribe to private channels with authentication
+            # Note: account.balanceUpdate doesn't exist in Backpack API
+            # Balance updates come through orderUpdate events
             subscriptions = [
-                CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,
-                CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL,
-                CONSTANTS.WS_ACCOUNT_POSITIONS_CHANNEL,
-                CONSTANTS.WS_ACCOUNT_TRANSACTIONS_CHANNEL,
+                CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,  # Only documented private stream
             ]
 
+            # Include auth params with the subscription
             subscription_payload = {
                 "method": "SUBSCRIBE",
                 "params": subscriptions,
+                "signature": [
+                    self._auth.api_key,
+                    signature,
+                    timestamp,
+                    window,
+                ],
             }
 
             subscribe_request = WSJSONRequest(payload=subscription_payload)
             await ws.send(subscribe_request)
 
-            self.logger().info(f"Subscribed to private channels: {subscriptions}")
+            self.logger().info(f"Sent authenticated subscription to private channels: {subscriptions}")
+
+            # Wait for subscription confirmation
+            try:
+                sub_response = await asyncio.wait_for(
+                    ws.receive(),
+                    timeout=5.0,
+                )
+                if sub_response and sub_response.data:
+                    response_data = (
+                        json.loads(sub_response.data)
+                        if isinstance(sub_response.data, str)
+                        else sub_response.data
+                    )
+                    if "error" in response_data:
+                        self.logger().error(f"Subscription error: {response_data['error']}")
+                        # Don't raise on error, just log it
+                    else:
+                        self.logger().info(f"Subscription response: {response_data}")
+            except asyncio.TimeoutError:
+                # No response for private stream subscriptions is expected behavior
+                # Backpack only sends responses for errors, not confirmations
+                # Tested empirically: private streams give no response when successful
+                self.logger().debug("No response received - subscription successful (expected for private streams)")
 
         except Exception:
             self.logger().error("Error subscribing to private channels", exc_info=True)
-            raise
+            # Don't raise, try to continue
 
     async def listen_for_user_stream(self, output: asyncio.Queue):
         """Listen for user stream messages and add them to the output queue.
@@ -165,14 +176,15 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         while True:
             try:
                 ws = await self._connected_websocket_assistant()
+                self._ws_assistant = ws  # Store reference for last_recv_time
                 await self._subscribe_channels(ws)
 
                 async for ws_response in ws.iter_messages():
                     try:
-                        self._last_recv_time = time.time()
                         if ws_response is None or ws_response.data is None:
                             continue
-                        data = json.loads(ws_response.data)
+                        # Handle both string and dict responses
+                        data = ws_response.data if isinstance(ws_response.data, dict) else json.loads(ws_response.data)
 
                         # Process different message types
                         await self._process_user_stream_message(data, output)
@@ -205,8 +217,9 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         """
         try:
             # Backpack wraps all stream data in {"stream": "<stream>", "data": "<payload>"}
-            stream_name = message.get("stream", "")
-            data = message.get("data", message)  # Fallback to message itself if not wrapped
+            # But auth confirmations might come without stream
+            stream_name = message.get("stream") if "stream" in message else ""
+            data = message.get("data") if "data" in message else message
 
             # Check for authentication/subscription confirmations
             if message.get("result") == "success" or message.get("type") == "authenticated":
@@ -214,12 +227,15 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
                 return
 
             # Route based on stream name
-            if stream_name == CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL or "orderUpdate" in stream_name:
-                await self._process_order_update({"stream": stream_name, "data": data}, output)
-            elif stream_name == CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL or "balanceUpdate" in stream_name:
-                await self._process_balance_update({"stream": stream_name, "data": data}, output)
-            elif "fill" in stream_name.lower() or "trade" in stream_name.lower():
-                await self._process_trade_update({"stream": stream_name, "data": data}, output)
+            if stream_name:
+                if stream_name == CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL or "orderUpdate" in stream_name:
+                    # Order updates may contain balance information
+                    await self._process_order_update({"stream": stream_name, "data": data}, output)
+                    # Check if order update contains balance changes
+                    if data and isinstance(data, dict) and "balances" in data:
+                        await self._process_balance_update({"stream": stream_name, "data": data}, output)
+                elif "fill" in stream_name.lower() or "trade" in stream_name.lower():
+                    await self._process_trade_update({"stream": stream_name, "data": data}, output)
             else:
                 # Log unknown message types for debugging
                 self.logger().debug(f"Unknown user stream: {stream_name}")

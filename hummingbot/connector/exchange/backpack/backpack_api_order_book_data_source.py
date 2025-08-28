@@ -107,13 +107,22 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         snapshot_data = await self._request_order_book_snapshot(trading_pair)
 
+        # Convert Backpack format [["price", "amount"], ...] to numeric format
+        if "bids" not in snapshot_data or "asks" not in snapshot_data:
+            raise ValueError(f"Missing bids or asks in snapshot: {snapshot_data}")
+        raw_bids = snapshot_data["bids"]
+        raw_asks = snapshot_data["asks"]
+
+        formatted_bids = [[float(bid[0]), float(bid[1])] for bid in raw_bids if len(bid) >= 2]
+        formatted_asks = [[float(ask[0]), float(ask[1])] for ask in raw_asks if len(ask) >= 2]
+
         snapshot_message = OrderBookMessage(
             message_type=OrderBookMessageType.SNAPSHOT,
             content={
                 "trading_pair": trading_pair,
-                "update_id": snapshot_data.get("lastUpdateId", 0),
-                "bids": snapshot_data.get("bids", []),
-                "asks": snapshot_data.get("asks", []),
+                "update_id": int(snapshot_data["lastUpdateId"]) if "lastUpdateId" in snapshot_data else 0,
+                "bids": formatted_bids,
+                "asks": formatted_asks,
             },
             timestamp=time.time(),
         )
@@ -131,7 +140,8 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         ws: WSAssistant = await self._api_factory.get_ws_assistant()
         await ws.connect(
             ws_url=web_utils.ws_public_url(self._domain),
-            message_timeout=CONSTANTS.REQUEST_TIMEOUT,
+            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
+            # Public streams should have regular updates, but using ping_timeout for consistency
         )
         return ws
 
@@ -193,20 +203,27 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         if event_message.get("result") == "success" or event_message.get("type") == "subscribed":
             return channel
 
-        # Check for Backpack's message types
-        message_type = event_message.get("type", "")
+        stream = event_message.get("stream", "")
 
-        if message_type == CONSTANTS.WS_DEPTH_CHANNEL:
+        if stream.startswith("depth."):
             channel = self._diff_messages_queue_key
-        elif message_type == CONSTANTS.WS_TRADES_CHANNEL:
+        elif stream.startswith("trade."):
             channel = self._trade_messages_queue_key
         else:
-            # Check data content if type is not clear
-            data = event_message.get("data", {})
-            if "bids" in data or "asks" in data:
-                channel = self._diff_messages_queue_key
-            elif "price" in data and "quantity" in data:
-                channel = self._trade_messages_queue_key
+            # Fallback: Check data.e field for event type
+            if "data" in event_message:
+                data = event_message["data"]
+                event_type = data.get("e", "")
+
+                if event_type == "depth":
+                    channel = self._diff_messages_queue_key
+                elif event_type == "trade":
+                    channel = self._trade_messages_queue_key
+                # Also check for actual content as last resort
+                elif "a" in data or "b" in data:  # 'a' for asks, 'b' for bids
+                    channel = self._diff_messages_queue_key
+                elif "p" in data and "q" in data:  # 'p' for price, 'q' for quantity
+                    channel = self._trade_messages_queue_key
 
         return channel
 
@@ -223,22 +240,25 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         try:
             data = raw_message.get("data", {})
-            exchange_symbol = data.get("symbol")
+
+            # Backpack uses abbreviated field names in WebSocket:
+            # 's' for symbol, 'a' for asks, 'b' for bids, 'T' for timestamp, 'u' for update_id
+            exchange_symbol = data.get("s") or data.get("symbol")
 
             if exchange_symbol:
                 trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
 
                 if trading_pair in self._trading_pairs:
-                    # WebSocket timestamps are in microseconds (new API)
-                    timestamp = data.get("timestamp", time.time() * 1_000_000)
+                    # WebSocket timestamps are in microseconds (field 'T' or 'E')
+                    timestamp = data.get("T", data.get("E", time.time() * 1_000_000))
 
                     order_book_message = OrderBookMessage(
                         message_type=OrderBookMessageType.DIFF,
                         content={
                             "trading_pair": trading_pair,
-                            "update_id": data.get("lastUpdateId", 0),
-                            "bids": data.get("bids", []),
-                            "asks": data.get("asks", []),
+                            "update_id": data.get("u", data.get("U", 0)),  # 'u' or 'U' for update_id
+                            "bids": data.get("b", data.get("bids", [])),   # 'b' for bids
+                            "asks": data.get("a", data.get("asks", [])),   # 'a' for asks
                         },
                         timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
                     )
@@ -264,23 +284,31 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         """
         try:
             data = raw_message.get("data", {})
-            exchange_symbol = data.get("symbol")
+
+            # Backpack uses abbreviated field names in WebSocket:
+            # 's' for symbol, 'p' for price, 'q' for quantity, 't' for trade_id
+            exchange_symbol = data.get("s") or data.get("symbol")
 
             if exchange_symbol:
                 trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
 
                 if trading_pair in self._trading_pairs:
-                    # WebSocket timestamps are in microseconds (new API)
-                    timestamp = data.get("timestamp", time.time() * 1_000_000)
+                    # WebSocket timestamps are in microseconds (field 'T' or 'E')
+                    timestamp = data.get("T", data.get("E", time.time() * 1_000_000))
+
+                    # Determine trade side - 'm' field indicates if buyer is maker
+                    # If m=true, buyer is maker (taker sold), if m=false, seller is maker (taker bought)
+                    is_buyer_maker = data.get("m", False)
+                    trade_type = "SELL" if is_buyer_maker else "BUY"
 
                     trade_message = OrderBookMessage(
                         message_type=OrderBookMessageType.TRADE,
                         content={
                             "trading_pair": trading_pair,
-                            "trade_type": data.get("side", "").upper(),
-                            "trade_id": data.get("tradeId"),
-                            "price": float(data.get("price", 0)),
-                            "amount": float(data.get("quantity", 0)),
+                            "trade_type": trade_type,
+                            "trade_id": data.get("t", data.get("tradeId")),  # 't' for trade_id
+                            "price": float(data.get("p", data.get("price", 0))),  # 'p' for price
+                            "amount": float(data.get("q", data.get("quantity", 0))),  # 'q' for quantity
                         },
                         timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
                     )
@@ -308,20 +336,26 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         # This method handles snapshots placed in queue by _request_order_book_snapshots
         try:
             # If this is a REST snapshot, it will have the structure we expect
-            trading_pair = raw_message.get("trading_pair")
-            if trading_pair:
-                snapshot_message = OrderBookMessage(
-                    message_type=OrderBookMessageType.SNAPSHOT,
-                    content={
-                        "trading_pair": trading_pair,
-                        "update_id": raw_message.get("lastUpdateId", 0),
-                        "bids": raw_message.get("bids", []),
-                        "asks": raw_message.get("asks", []),
-                    },
-                    timestamp=time.time(),
-                )
+            # These are created by _request_order_book_snapshots with guaranteed fields
+            if "trading_pair" not in raw_message:
+                self.logger().error(f"Missing trading_pair in snapshot: {raw_message}")
+                return
 
-                await message_queue.put(snapshot_message)
+            trading_pair = raw_message["trading_pair"]
+
+            # These fields are guaranteed from our own snapshot creation
+            snapshot_message = OrderBookMessage(
+                message_type=OrderBookMessageType.SNAPSHOT,
+                content={
+                    "trading_pair": trading_pair,
+                    "update_id": raw_message["update_id"],
+                    "bids": raw_message["bids"],
+                    "asks": raw_message["asks"],
+                },
+                timestamp=time.time(),
+            )
+
+            await message_queue.put(snapshot_message)
 
         except Exception:
             self.logger().error(

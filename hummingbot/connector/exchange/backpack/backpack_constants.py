@@ -12,6 +12,10 @@ EXCHANGE_NAME = "backpack"
 # Default domain
 DEFAULT_DOMAIN = "backpack"
 
+# Client order ID settings
+HBOT_ORDER_ID_PREFIX = ""  # No prefix needed since we map to numeric IDs
+MAX_ORDER_ID_LEN = 36  # Standard Hummingbot ID length
+
 # Base URLs
 # Backpack does not have a testnet, so we only have mainnet configuration
 REST_URLS = {
@@ -26,6 +30,7 @@ PING_URL = "api/v1/ping"
 TIME_URL = "api/v1/time"
 EXCHANGE_INFO_URL = "api/v1/markets"  # Fixed from "api/v1/capital"
 TICKER_URL = "api/v1/ticker"
+TICKERS_URL = "api/v1/tickers"
 DEPTH_URL = "api/v1/depth"
 KLINES_URL = "api/v1/klines"
 TRADES_URL = "api/v1/trades"
@@ -34,9 +39,10 @@ TRADES_URL = "api/v1/trades"
 ORDER_URL = "api/v1/order"
 CANCEL_ORDER_URL = "api/v1/order"
 OPEN_ORDERS_URL = "api/v1/orders"
-ORDER_HISTORY_URL = "api/v1/orderHistory"
-FILLS_URL = "api/v1/fills"
+ORDER_HISTORY_URL = "wapi/v1/history/orders"  # Private endpoint for order history
+FILLS_URL = "wapi/v1/history/fills"  # Private endpoint for fill history
 BALANCES_URL = "api/v1/capital"  # Backpack uses /capital for balance information
+COLLATERAL_URL = "api/v1/capital/collateral"  # Collateral endpoint for auto-lent funds
 ACCOUNT_URL = "api/v1/account"  # Account info endpoint (may contain fee rates)
 
 # WebSocket channels
@@ -47,104 +53,117 @@ WS_TICKER_CHANNEL = "ticker"  # Full format: ticker.<symbol>
 WS_KLINE_CHANNEL = "kline"  # Full format: kline.<interval>.<symbol>
 
 # Private WebSocket channels
-WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Fixed from "account.orders"
-WS_ACCOUNT_BALANCES_CHANNEL = "account.balanceUpdate"  # Fixed from "account.balances"
+WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Documented in OpenAPI
+# Note: account.balanceUpdate is NOT documented in the OpenAPI - balance updates come through orderUpdate events
 WS_ACCOUNT_POSITIONS_CHANNEL = "account.positionUpdate"  # Note: Not applicable for spot
 WS_ACCOUNT_TRANSACTIONS_CHANNEL = "account.transactionUpdate"  # May not exist in API
 
-# Rate limits based on Backpack documentation
-# Orders: 10 requests per second
+# Rate limits based on official Backpack Discord information:
+# - All endpoints: 1000 requests per minute (16.67 requests per second)
+# - Historical endpoints: 60 requests per 2 minutes (0.5 requests per second)
 # Rate limit pools
 PUBLIC_ENDPOINT_LIMIT_ID = "PublicEndpoints"
 PRIVATE_ENDPOINT_LIMIT_ID = "PrivateEndpoints"
+HISTORICAL_ENDPOINT_LIMIT_ID = "HistoricalEndpoints"
 
-# Cancel: 10 requests per second
-# Public endpoints: 20 requests per second
-# Private account endpoints: 10 requests per second
 RATE_LIMITS = [
-    # Pool limits - Based on Backpack API documentation
-    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1200, time_interval=60),
-    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=100, time_interval=60),
-    # Order management endpoints (private)
+    # Main pool limits - 1000 requests per minute for all endpoints
+    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
+    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
+    # Historical endpoints - 60 requests per 2 minutes
+    RateLimit(limit_id=HISTORICAL_ENDPOINT_LIMIT_ID, limit=60, time_interval=120),
+    # Order management endpoints (private) - share the main 1000/min limit
     RateLimit(
         limit_id=ORDER_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second (1000/60)
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=CANCEL_ORDER_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=OPEN_ORDERS_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=ORDER_HISTORY_URL,
-        limit=10,
-        time_interval=1,
-        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     # Account endpoints (private)
     RateLimit(
         limit_id=BALANCES_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
-        limit_id=FILLS_URL,
-        limit=10,
+        limit_id=ACCOUNT_URL,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
-    # Public endpoints
+    RateLimit(
+        limit_id=FILLS_URL,  # /wapi/v1/history/fills is a historical endpoint
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    # Public endpoints - share the main 1000/min limit
     RateLimit(
         limit_id=PING_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TIME_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=EXCHANGE_INFO_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
-        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)],
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TICKER_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=DEPTH_URL,
-        limit=20,
-        time_interval=1,
-        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)],
-    ),
-    RateLimit(
-        limit_id=KLINES_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=KLINES_URL,  # /api/v1/klines is a historical endpoint (can query with startTime/endTime)
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TRADES_URL,
-        limit=20,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=COLLATERAL_URL,
+        limit=16,  # ~16.67 requests per second (private endpoint)
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
 ]
 
@@ -170,10 +189,10 @@ ORDER_TYPE_MAP = {
     # OrderType.LIMIT_MAKER is not directly supported - use LIMIT with PostOnly timeInForce
 }
 
-# Order sides
+# Order sides - Backpack uses Bid/Ask instead of Buy/Sell
 ORDER_SIDE_MAP = {
-    TradeType.BUY.name: "Buy",
-    TradeType.SELL.name: "Sell",
+    TradeType.BUY.name: "Bid",
+    TradeType.SELL.name: "Ask",
 }
 
 # Time in force
@@ -181,7 +200,6 @@ TIME_IN_FORCE_MAP = {
     "GTC": "GTC",  # Good Till Cancel
     "IOC": "IOC",  # Immediate or Cancel
     "FOK": "FOK",  # Fill or Kill
-    "PostOnly": "PostOnly",  # Post Only orders (maker only)
 }
 
 # WebSocket message types
