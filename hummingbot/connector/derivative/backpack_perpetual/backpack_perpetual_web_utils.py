@@ -232,10 +232,14 @@ async def api_request(
                 is_auth_required=is_auth_required,
             )
 
+            # For PATCH requests that return 200 with no content, return empty dict
+            if method == RESTMethod.PATCH and response == "":
+                return {}
+
             # Response could be str or dict from execute_request
             if isinstance(response, str):
                 # Try to parse as JSON if it's a string
-                return json.loads(response)
+                return json.loads(response) if response else {}
             return response
 
         except asyncio.TimeoutError as e:

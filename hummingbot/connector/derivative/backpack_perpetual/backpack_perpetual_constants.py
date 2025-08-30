@@ -41,8 +41,8 @@ ORDER_URL = "api/v1/order"
 CANCEL_URL = "api/v1/order"
 CANCEL_ALL_URL = "api/v1/orders"
 OPEN_ORDERS_URL = "api/v1/orders"
-ORDER_HISTORY_URL = "api/v1/orderHistory"
-FILLS_URL = "api/v1/fills"
+ORDER_HISTORY_URL = "wapi/v1/history/orders"
+FILLS_URL = "wapi/v1/history/fills"
 
 # Account endpoints
 BALANCE_URL = "api/v1/capital"
@@ -208,6 +208,9 @@ MARGIN_TYPE_MAP = {
     "Cross": "CROSS",
     "Isolated": "ISOLATED",
 }
+
+# Timing constants
+HEARTBEAT_TIME_INTERVAL = 30.0  # WebSocket heartbeat interval in seconds
 
 # Market configuration
 # IMPORTANT: All market-specific parameters MUST be fetched from the /api/v1/markets endpoint

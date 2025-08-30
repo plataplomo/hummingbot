@@ -115,7 +115,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
         await self._ws_assistant.connect(
             ws_url=ws_url,
-            message_timeout=CONSTANTS.WS_MESSAGE_TIMEOUT,
+            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
         )
         return self._ws_assistant
 

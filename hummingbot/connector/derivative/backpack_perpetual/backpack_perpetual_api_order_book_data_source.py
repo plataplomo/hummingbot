@@ -142,7 +142,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 "trading_pair": trading_pair,
                 "bids": snapshot_data.get("bids", []),
                 "asks": snapshot_data.get("asks", []),
-                "update_id": int(snapshot_data.get("timestamp", 0)),
+                "update_id": int(snapshot_data.get("lastUpdateId", 0)),
             },
             # REST depth endpoint returns timestamp in microseconds
             timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
@@ -176,6 +176,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 "symbol": symbol,
                 "bids": response.get("bids", []),
                 "asks": response.get("asks", []),
+                "lastUpdateId": int(response.get("lastUpdateId", 0)),
                 # REST depth endpoint returns timestamp in microseconds
                 "timestamp": response.get("timestamp", time.time() * 1_000_000),
             }
@@ -185,6 +186,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             "symbol": symbol,
             "bids": [],
             "asks": [],
+            "lastUpdateId": 0,
             # Fake timestamp in microseconds for consistency
             "timestamp": time.time() * 1_000_000,
         }
@@ -201,7 +203,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
         await ws.connect(
             ws_url=ws_url,
-            message_timeout=CONSTANTS.WS_MESSAGE_TIMEOUT,
+            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
         )
         return ws
 
@@ -412,7 +414,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     "trading_pair": trading_pair,
                     "bids": snapshot_data.get("bids", []),
                     "asks": snapshot_data.get("asks", []),
-                    "update_id": snapshot_data.get("lastUpdateId", 0),
+                    "update_id": int(snapshot_data.get("lastUpdateId", 0)),
                 },
                 # REST depth endpoint returns timestamp in microseconds
                 timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,

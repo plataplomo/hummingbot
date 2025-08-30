@@ -67,6 +67,7 @@ class BackpackPerpetualAuth(AuthBase):
         self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
             # Account endpoints
             ("GET", "/api/v1/account"): "accountQuery",
+            ("PATCH", "/api/v1/account"): "accountUpdate",
             # Capital and Balance endpoints
             ("GET", "/api/v1/capital"): "balanceQuery",
             ("GET", "/api/v1/capital/collateral"): "collateralQuery",
@@ -78,12 +79,9 @@ class BackpackPerpetualAuth(AuthBase):
             ("DELETE", "/api/v1/orders"): "orderCancelAll",
             ("GET", "/api/v1/order"): "orderQuery",
             ("GET", "/api/v1/orders"): "orderQueryAll",
-            # Historical Data endpoints
-            ("GET", "/api/v1/history/orders"): "orderHistoryQueryAll",
-            ("GET", "/api/v1/history/fills"): "fillHistoryQueryAll",
-            # Trading Data endpoints
-            ("GET", "/api/v1/trades/history"): "fillHistoryQueryAll",
-            ("GET", "/api/v1/fills"): "fillHistoryQueryAll",
+            # Historical Data endpoints (using wapi for history)
+            ("GET", "/wapi/v1/history/orders"): "orderHistoryQueryAll",
+            ("GET", "/wapi/v1/history/fills"): "fillHistoryQueryAll",
             # Funding history endpoints (for perpetuals)
             ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
         }
@@ -174,7 +172,7 @@ class BackpackPerpetualAuth(AuthBase):
                     if isinstance(value, bool):
                         formatted_value = "true" if value else "false"
                     payload_parts.append(f"{key}={formatted_value}")
-        elif method.upper() in ["POST", "PUT", "DELETE"] and body:
+        elif method.upper() in ["POST", "PUT", "DELETE", "PATCH"] and body:
             # For POST/PUT/DELETE, parse JSON body and add as parameters
             try:
                 body_dict = json.loads(body) if isinstance(body, str) else body
