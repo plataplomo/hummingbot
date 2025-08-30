@@ -2,12 +2,12 @@
 Main derivative class implementing perpetual futures trading functionality.
 """
 
+import math
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
-from hummingbot.client.config.trade_fee_schema_loader import TradeFeeSchemaLoader
 from hummingbot.connector.constants import s_decimal_NaN
 from hummingbot.connector.derivative.backpack_perpetual import (
     backpack_perpetual_constants as CONSTANTS,
@@ -25,11 +25,10 @@ from hummingbot.connector.derivative.position import Position
 from hummingbot.connector.perpetual_derivative_py_base import PerpetualDerivativePyBase
 from hummingbot.connector.trading_rule import TradingRule
 from hummingbot.core.api_throttler.data_types import RateLimit
-from hummingbot.core.clock import Clock
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.funding_info import FundingInfo
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
-from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase, TradeFeeSchema
+from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.event.events import (
     AccountEvent,
@@ -37,7 +36,7 @@ from hummingbot.core.event.events import (
     MarketEvent,
     PositionModeChangeEvent,
 )
-from hummingbot.core.utils.async_utils import safe_gather
+from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
 from hummingbot.core.utils.estimate_fee import build_perpetual_trade_fee
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
@@ -60,6 +59,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     SHORT_POLL_INTERVAL = 5.0
     UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
     LONG_POLL_INTERVAL = 120.0
+    web_utils = cast(Any, web_utils)  # Module assignment for base class
 
     def __init__(
         self,
@@ -88,8 +88,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._position_mode: PositionMode = CONSTANTS.DEFAULT_POSITION_MODE  # Initialize with default position mode
         self._last_trade_history_timestamp = None
         self._leverage_map: dict[str, int] = {}  # Store leverage per trading pair
-        self._market_margin_requirements: dict[str, dict[str, Decimal]] = {}  # Store margin requirements per market
+        self._account_leverage_limit: Decimal | None = None  # Account-wide leverage limit from API
+        self._account_imf: Decimal | None = None  # Initial margin fraction from collateral endpoint
+        self._account_mmf: Decimal | None = None  # Maintenance margin fraction from collateral endpoint
         self._funding_info_cache: dict[str, tuple[FundingInfo, float]] = {}  # Cache funding info with timestamp
+        # Initialize ID mapper for client order IDs
+        self._id_mapper = utils.BackpackIDMapper()
         super().__init__(client_config_map)
 
     # Required properties from PerpetualDerivativePyBase
@@ -102,17 +106,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         if self.backpack_perpetual_api_key is None or self.backpack_perpetual_api_secret is None:
             raise ValueError("API key and secret are required for authentication")
 
-        # Convert TimeSynchronizer to a callable that returns int (milliseconds)
-
-        def time_provider() -> int:
-            if self._time_synchronizer:
-                return int(self._time_synchronizer.time() * 1000)
-            return int(time.time() * 1000)  # Fallback to system time
-
         return BackpackPerpetualAuth(
             self.backpack_perpetual_api_key,
             self.backpack_perpetual_api_secret,
-            time_provider,
+            self._time_synchronizer,
         )
 
     @property
@@ -148,10 +145,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         return self._trading_pairs or []
 
     def set_leverage(self, trading_pair: str, leverage: int = 1):
-        """Set leverage for a trading pair (stored locally).
+        """Set leverage for a trading pair.
 
         Note: Backpack uses account-wide leverage limits rather than per-position leverage.
-        This method stores the leverage locally for use in calculations.
+        This method triggers an async task to set the leverage via API.
 
         Args:
             trading_pair: The trading pair
@@ -160,19 +157,40 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         Returns:
             The leverage value that was set
         """
+        # Store locally first
         self._leverage_map[trading_pair] = leverage
         self._perpetual_trading.set_leverage(trading_pair, leverage)
 
-        self.logger().info(
-            f"Leverage {leverage}x stored locally for {trading_pair}. "
-            f"Note: Backpack uses account-wide leverage limits.",
-        )
+        # Schedule the async API call
+        safe_ensure_future(self._set_trading_pair_leverage(trading_pair, leverage))
 
         return leverage
 
     @property
     def is_cancel_request_in_exchange_synchronous(self) -> bool:
         return True
+
+    async def start_network(self):
+        """Start the network and initialize account data."""
+        await super().start_network()
+        # Fetch initial balances and positions to ensure connector is ready
+        try:
+            # Ensure trading rules are loaded first
+            if not self._trading_rules:
+                await self._update_trading_rules()
+
+            # Fetch account-wide leverage and margin data if trading
+            if self._trading_required:
+                await self._fetch_account_margin_data()
+
+            await self._update_balances()
+            await self._update_positions()
+            await self._update_funding_info()
+        except Exception:
+            self.logger().warning(
+                "Failed to fetch initial balances/positions, will retry in polling loop",
+                exc_info=True,
+            )
 
     @property
     def is_trading_required(self) -> bool:
@@ -214,32 +232,6 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         return mode in CONSTANTS.SUPPORTED_POSITION_MODES
 
-    def set_position_mode(self, position_mode: PositionMode):
-        """Set the position mode for the connector.
-
-        Note: Backpack only supports ONEWAY position mode, so this method
-        validates the mode and raises an exception if an unsupported mode is requested.
-
-        Args:
-            position_mode: The position mode to set
-
-        Raises:
-            ValueError: If the requested position mode is not supported
-        """
-        if position_mode != PositionMode.ONEWAY:
-            raise ValueError(
-                f"Backpack perpetual only supports ONEWAY position mode. Requested mode: {position_mode}",
-            )
-        self._position_mode = position_mode
-        self.logger().info(f"Position mode set to {position_mode} (only mode supported by Backpack)")
-
-    def start(self, clock: Clock, timestamp: float):
-        """Start the connector and initialize position mode."""
-        super().start(clock, timestamp)
-        if self._domain == CONSTANTS.DEFAULT_DOMAIN and self.is_trading_required:
-            # Backpack only supports ONE-WAY mode
-            self.set_position_mode(PositionMode.ONEWAY)
-
     def get_buy_collateral_token(self, trading_pair: str) -> str:
         """Returns collateral token for long positions"""
         trading_rule: TradingRule = self._trading_rules[trading_pair]
@@ -251,32 +243,39 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         return trading_rule.sell_order_collateral_token
 
     def get_max_leverage(self, trading_pair: str) -> Decimal:
-        """Get the maximum leverage for a trading pair."""
-        if trading_pair not in self._market_margin_requirements:
+        """Get the maximum leverage for a trading pair.
+
+        For Backpack, leverage is account-wide, not per trading pair.
+        """
+        if self._account_leverage_limit is None:
             raise ValueError(
-                f"Market margin requirements not available for {trading_pair}. Please wait for market data to load.",
+                "Account leverage limit not loaded. Cannot determine maximum leverage.",
             )
-        return self._market_margin_requirements[trading_pair]["max_leverage"]
+        return self._account_leverage_limit
 
     def get_initial_margin_ratio(self, trading_pair: str) -> Decimal:
-        """Get the initial margin ratio for a trading pair."""
-        if trading_pair not in self._market_margin_requirements:
+        """Get the initial margin ratio for a trading pair.
+
+        For Backpack, this comes from the account-wide IMF (initial margin fraction)
+        from the collateral endpoint.
+        """
+        if self._account_imf is None:
             raise ValueError(
-                f"Market margin requirements not available for {trading_pair}. Please wait for market data to load.",
+                "Account initial margin fraction not loaded. Cannot determine initial margin ratio.",
             )
-        return self._market_margin_requirements[trading_pair]["initial_margin"]
+        return self._account_imf
 
     def get_maintenance_margin_ratio(self, trading_pair: str) -> Decimal:
-        """Get the maintenance margin ratio for a trading pair."""
-        if trading_pair not in self._market_margin_requirements:
-            raise ValueError(
-                f"Market margin requirements not available for {trading_pair}. Please wait for market data to load.",
-            )
-        return self._market_margin_requirements[trading_pair]["maintenance_margin"]
+        """Get the maintenance margin ratio for a trading pair.
 
-    def trade_fee_schema(self) -> TradeFeeSchema:
-        """Returns the trade fee schema for Backpack exchange."""
-        return TradeFeeSchemaLoader.configured_schema_for_exchange(exchange_name=self.name)
+        For Backpack, this comes from the account-wide MMF (maintenance margin fraction)
+        from the collateral endpoint.
+        """
+        if self._account_mmf is None:
+            raise ValueError(
+                "Account maintenance margin fraction not loaded. Cannot determine maintenance margin ratio.",
+            )
+        return self._account_mmf
 
     async def exchange_symbol_associated_to_pair(self, trading_pair: str) -> str:
         """Convert Hummingbot trading pair format to Backpack exchange format.
@@ -285,12 +284,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
 
         Returns:
-            Exchange symbol format (e.g., "BTC_PERP")
+            Exchange symbol format (e.g., "BTC_USDC_PERP")
         """
-        # For perpetuals, Backpack uses format like "BTC_PERP"
-        # Extract base asset from trading pair (remove quote asset)
-        base_asset = trading_pair.split("-", maxsplit=1)[0]
-        return f"{base_asset}_PERP"
+        # Use the proper conversion function from utils
+        return utils.convert_to_exchange_trading_pair(trading_pair)
 
     # Helper methods for order and trade type conversion
     @staticmethod
@@ -357,8 +354,15 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 pass
 
         # Fallback to string checking for non-JSON responses
-        error_str = str(cancelation_exception)
-        return str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in error_str and CONSTANTS.UNKNOWN_ORDER_MESSAGE in error_str
+        error_str = str(cancelation_exception).lower()
+        return (
+            (str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE).lower() in error_str)
+            or (CONSTANTS.UNKNOWN_ORDER_MESSAGE.lower() in error_str)
+            or (CONSTANTS.ORDER_NOT_FOUND_MESSAGE in error_str)
+            or (CONSTANTS.ORDER_DOES_NOT_EXIST_MESSAGE in error_str)
+            or (CONSTANTS.UNKNOWN_ORDER_ALT_MESSAGE in error_str)
+            or (CONSTANTS.INVALID_CLIENT_REQUEST_MESSAGE in error_str)
+        )
 
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
         return web_utils.build_api_factory(
@@ -378,27 +382,45 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     def _create_user_stream_data_source(self) -> UserStreamTrackerDataSource:
         return BackpackPerpetualUserStreamDataSource(
-            auth=self.authenticator,  # Use the property that returns BackpackPerpetualAuth
+            auth=self.authenticator,
             connector=self,
             api_factory=self._web_assistants_factory,
             domain=self.domain,
         )
 
+    def _is_user_stream_initialized(self) -> bool:
+        """Check if user stream is initialized.
+
+        For Backpack, we consider the stream initialized if we have a data source,
+        regardless of whether messages have been received yet, since the private
+        stream may not send messages until there are actual order updates.
+        """
+        return (
+            self._user_stream_tracker is not None
+            and self._user_stream_tracker.data_source is not None
+        ) or not self.is_trading_required
+
     async def _status_polling_loop_fetch_updates(self):
         """Fetch updates for the status polling loop.
         This method is called periodically to update order status and positions.
         """
-        # Update positions for perpetual trading
-        await self._update_positions()
-        # Update order fills from trades if needed
-        await self._update_order_fills_from_trades()
-        # Call parent implementation
-        await super()._status_polling_loop_fetch_updates()
+        # Following the pattern from Binance, Bybit, and KuCoin perpetual connectors
+        # We need to explicitly call these update methods
+        # Update all necessary data in parallel
+        await safe_gather(
+            self._update_order_fills_from_trades(),
+            self._update_balances(),
+            self._update_positions(),
+        )
 
     async def _update_order_fills_from_trades(self):
         """Update order fills from recent trades.
         This is used to ensure we capture all fills even if WebSocket messages are missed.
         """
+        # Initialize _last_poll_timestamp if it's 0 and we have a valid timestamp
+        if self._last_poll_timestamp == 0 and not math.isnan(self.current_timestamp):
+            self._last_poll_timestamp = self.current_timestamp
+
         last_tick = int(self._last_poll_timestamp / self.UPDATE_ORDER_STATUS_MIN_INTERVAL)
         current_tick = int(self.current_timestamp / self.UPDATE_ORDER_STATUS_MIN_INTERVAL)
 
@@ -422,7 +444,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         path_url=CONSTANTS.FILLS_URL,
                         params={"symbol": exchange_symbol},
                         is_auth_required=True,
-                        limit_id=CONSTANTS.FILLS_URL,
+                        limit_id=CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID,
                     ),
                 )
 
@@ -528,15 +550,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         quote_currency: str,
         order_type: OrderType,
         order_side: TradeType,
+        position_action: PositionAction,
         amount: Decimal,
         price: Decimal = s_decimal_NaN,
         is_maker: bool | None = None,
-        position_action: PositionAction | None = None,
     ) -> TradeFeeBase:
         is_maker = is_maker or (order_type == OrderType.LIMIT_MAKER)
-        # Use default position action if not provided
-        if position_action is None:
-            position_action = PositionAction.OPEN
 
         fee = build_perpetual_trade_fee(
             self.name,
@@ -597,6 +616,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self,
         path_url: str,
         params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,  # Add data parameter
         is_auth_required: bool = True,
         limit_id: str | None = None,
     ) -> dict[str, Any]:
@@ -608,7 +628,30 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             time_synchronizer=self._time_synchronizer,
             domain=self._domain,
             params=params,
+            data=data,  # Pass data to api_request
             method=RESTMethod.DELETE,
+            is_auth_required=is_auth_required,
+            limit_id=limit_id,
+        )
+
+    async def _api_patch(
+        self,
+        path_url: str,
+        params: dict[str, Any] | None = None,
+        data: dict[str, Any] | None = None,
+        is_auth_required: bool = True,
+        limit_id: str | None = None,
+    ) -> dict[str, Any]:
+        """Execute PATCH request."""
+        return await web_utils.api_request(
+            path=path_url,
+            api_factory=self._web_assistants_factory,
+            throttler=self._throttler,
+            time_synchronizer=self._time_synchronizer,
+            domain=self._domain,
+            params=params,
+            data=data,
+            method=RESTMethod.PATCH,
             is_auth_required=is_auth_required,
             limit_id=limit_id,
         )
@@ -623,7 +666,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         trading_rules = {}
 
-        for market_info in response.get("symbols", []):
+        # The /api/v1/markets endpoint returns a list directly, not a dict
+        markets = response if isinstance(response, list) else response.get("symbols", [])
+
+        for market_info in markets:
             try:
                 # Only process perpetual markets
                 if not utils.is_perpetual_symbol(market_info["symbol"]):
@@ -682,60 +728,151 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         self._trading_rules = trading_rules
 
+        # Initialize trading pair symbols mapping (required for connector readiness)
+        self._initialize_trading_pair_symbols_from_exchange_info(response)
+
+    async def _fetch_account_margin_data(self):
+        """Fetch account-wide leverage and margin data from appropriate endpoints."""
+        # First get leverage limit from account endpoint
+        account_response = await self._api_get(
+            path_url=CONSTANTS.ACCOUNT_URL,
+            is_auth_required=True,
+        )
+
+        leverage_limit = account_response.get("leverageLimit")
+        if not leverage_limit:
+            raise ValueError(
+                "Account API response missing required 'leverageLimit' field. "
+                "Cannot operate without account leverage data.",
+            )
+
+        self._account_leverage_limit = Decimal(str(leverage_limit))
+
+        # Also update leverage map for all trading pairs with the account-wide limit
+        if self._trading_pairs:
+            for trading_pair in self._trading_pairs:
+                self._leverage_map[trading_pair] = int(self._account_leverage_limit)
+
+        # Now get margin fractions from collateral endpoint
+        collateral_response = await self._api_get(
+            path_url=CONSTANTS.COLLATERAL_URL,
+            is_auth_required=True,
+        )
+
+        imf = collateral_response.get("imf")
+        mmf = collateral_response.get("mmf")
+
+        if not imf:
+            raise ValueError(
+                "Collateral API response missing required 'imf' (initial margin fraction) field. "
+                "Cannot operate without margin data.",
+            )
+
+        if not mmf:
+            raise ValueError(
+                "Collateral API response missing required 'mmf' (maintenance margin fraction) field. "
+                "Cannot operate without margin data.",
+            )
+
+        self._account_imf = Decimal(str(imf))
+        self._account_mmf = Decimal(str(mmf))
+
+        self.logger().info(
+            f"Account margin data loaded - Leverage: {self._account_leverage_limit}x, "
+            f"IMF: {self._account_imf}, MMF: {self._account_mmf}",
+        )
+
     # Balance and position management
     async def _update_balances(self):
-        """Update account balances.
+        """Update account balances using collateral endpoint as single source of truth.
 
-        According to OpenAPI spec, the response format is:
-        {"USDC": {"available": "0", "locked": "0", "staked": "0"}, ...}
+        For perpetuals, we use the collateral endpoint just like the spot connector
+        because it includes auto-lent funds which are available for trading.
         """
-        response = await self._api_get(
-            path_url=CONSTANTS.BALANCE_URL,
-            is_auth_required=True,
-        )
+        try:
+            self.logger().debug("Fetching balances from collateral endpoint")
+            # Get collateral balances - this includes everything (spot + auto-lent)
+            collateral_data = await self._api_get(
+                path_url=CONSTANTS.COLLATERAL_URL,
+                is_auth_required=True,
+            )
+            self.logger().debug(f"Collateral data received: {collateral_data}")
 
-        self._account_available_balances.clear()
-        self._account_balances.clear()
+            # Check if we got valid data
+            if not collateral_data or "collateral" not in collateral_data:
+                self.logger().error(f"Invalid collateral data received: {collateral_data}")
+                return
 
-        # Response format per OpenAPI spec: {"ASSET": {"available": "0", "locked": "0", "staked": "0"}}
-        for asset, balance_info in response.items():
-            if isinstance(balance_info, dict):
-                available = Decimal(str(balance_info["available"]))
-                locked = Decimal(str(balance_info["locked"]))
-                # Note: staked is in the response but not used for trading
-                total = available + locked
+            # Initialize balance dictionaries
+            self._account_balances.clear()
+            self._account_available_balances.clear()
 
-                self._account_available_balances[asset] = available
-                self._account_balances[asset] = total
+            # Use collateral endpoint as the single source of truth
+            # It already includes both spot and auto-lent balances
+            for asset_info in collateral_data["collateral"]:
+                symbol = asset_info["symbol"]
+                total_quantity = Decimal(asset_info["totalQuantity"])
+                available_quantity = Decimal(asset_info["availableQuantity"])
+                lend_quantity = Decimal(asset_info.get("lendQuantity", "0"))
+
+                # Total balance is totalQuantity
+                self._account_balances[symbol] = total_quantity
+
+                # Lent funds are ALWAYS available for trading on Backpack
+                # When you place an order, Backpack automatically unlends what's needed
+                # So we add lendQuantity to availableQuantity to get true available balance
+                self._account_available_balances[symbol] = available_quantity + lend_quantity
+
+        except Exception as e:
+            self.logger().error(f"Failed to update balances: {e}", exc_info=True)
+            # Don't re-raise - similar to other perp connectors
 
     async def _update_positions(self):
-        """Update open positions."""
-        response = await self._api_get(
-            path_url=CONSTANTS.POSITIONS_URL,
-            is_auth_required=True,
-        )
+        """Update open positions.
 
-        # Handle both list format (direct response) and object format (wrapped in "positions" key)
-        # Normalize response to list format
-        positions = web_utils.normalize_response_to_list(response)
+        Following the pattern from Binance and Bybit connectors:
+        - Only remove positions when they are explicitly closed (amount = 0)
+        - Don't delete positions just because they're missing from one API response
+        - This prevents race conditions where positions disappear temporarily
+        """
+        try:
+            response = await self._api_get(
+                path_url=CONSTANTS.POSITIONS_URL,
+                is_auth_required=True,
+            )
 
-        # Track which trading pairs have positions in the response
-        trading_pairs_in_response = set()
+            # Handle both list format (direct response) and object format (wrapped in "positions" key)
+            # Normalize response to list format
+            positions = web_utils.normalize_response_to_list(response)
 
-        for position_data in positions:
-            symbol = position_data.get("symbol")
-            if symbol:
-                trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-                # Only process positions for trading pairs we're actually tracking
-                if trading_pair and self._trading_pairs and trading_pair in self._trading_pairs:
-                    trading_pairs_in_response.add(trading_pair)
-                    self._process_position_update(position_data)
+            # Log the number of positions received for debugging
+            if positions:
+                self.logger().debug(f"Received {len(positions)} position(s) from API")
+            else:
+                self.logger().debug("No positions returned from API (empty response)")
 
-        # Remove positions that are no longer in the response
-        current_positions = list(self._perpetual_trading.account_positions.keys())
-        for trading_pair in current_positions:
-            if trading_pair not in trading_pairs_in_response:
-                del self._perpetual_trading.account_positions[trading_pair]
+            # Process all positions from the API
+            for position_data in positions:
+                symbol = position_data.get("symbol")
+                if symbol:
+                    trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+                    # Only process positions for trading pairs we're actually tracking
+                    if trading_pair and self._trading_pairs and trading_pair in self._trading_pairs:
+                        self._process_position_update(position_data)
+
+            # NOTE: Unlike the previous implementation, we do NOT delete positions
+            # that are missing from the response. Positions should only be removed
+            # when they are explicitly closed (handled in _process_position_update
+            # when netQuantity == 0)
+
+            # Log current tracked positions for debugging
+            if self._perpetual_trading.account_positions:
+                self.logger().debug(
+                    f"Currently tracking {len(self._perpetual_trading.account_positions)} position(s): "
+                    f"{list(self._perpetual_trading.account_positions.keys())}",
+                )
+        except Exception as e:
+            self.logger().error(f"Error updating positions: {e}", exc_info=True)
 
     def _process_position_update(self, position_data: dict[str, Any]):
         """Process a position update from API or WebSocket."""
@@ -764,9 +901,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Determine position side - could be from 'side' field or calculated from quantity
             is_long = position_data["side"] in ["LONG", "Long"] if "side" in position_data else net_quantity > 0
 
-            # Skip if no position
+            # Only remove position if explicitly closed (amount = 0)
             if abs(net_quantity) == Decimal(0):
                 if trading_pair in self._perpetual_trading.account_positions:
+                    self.logger().debug(f"Position closed for {trading_pair}, removing from tracking")
                     del self._perpetual_trading.account_positions[trading_pair]
                 return
 
@@ -785,17 +923,27 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Trust exchange data structure
             entry_price = Decimal(str(position_data.get("entryPrice", position_data.get("B"))))
 
+            # IMPORTANT: The perpetual_market_making strategy expects amount to be:
+            # - Positive for LONG positions
+            # - Negative for SHORT positions
+            # It uses position.amount < 0 to check if position is SHORT
             position = Position(
                 trading_pair=trading_pair,
                 position_side=PositionSide.LONG if is_long else PositionSide.SHORT,
                 unrealized_pnl=unrealized_pnl,
                 entry_price=entry_price,
-                amount=abs(net_quantity),
+                amount=net_quantity,  # Keep sign! Negative for SHORT, positive for LONG
                 leverage=self._leverage_map.get(trading_pair, position_data.get("leverage", 1)),
             )
 
             # Store position
             self._perpetual_trading.account_positions[trading_pair] = position
+
+            # Log position update for debugging
+            self.logger().debug(
+                f"Position updated for {trading_pair}: side={position.position_side}, "
+                f"amount={position.amount} (signed), entry_price={position.entry_price}",
+            )
 
             # Check for margin call conditions based on maintenance margin and liquidation price
             # Similar to Binance implementation
@@ -866,33 +1014,116 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         **kwargs,
     ) -> tuple[str, float]:
         """Place an order on Backpack perpetual."""
-        _ = kwargs  # Future extension point
         symbol = utils.convert_to_exchange_trading_pair(trading_pair)
+
+        # Convert Hummingbot string ID to Backpack numeric ID
+        numeric_client_id = self._id_mapper.get_numeric_id(order_id)
 
         # Determine if this is a reduce-only order
         reduce_only = position_action == PositionAction.CLOSE
 
+        # Log detailed order information for debugging
+        self.logger().debug(
+            f"Placing order: symbol={symbol}, trade_type={trade_type}, "
+            f"order_type={order_type}, price={price}, amount={amount}, "
+            f"position_action={position_action}, reduce_only={reduce_only}",
+        )
+
+        # Log current position state if this is a CLOSE order
+        if reduce_only:
+            if trading_pair in self._perpetual_trading.account_positions:
+                pos = self._perpetual_trading.account_positions[trading_pair]
+                self.logger().debug(
+                    f"Current position for {trading_pair}: side={pos.position_side}, "
+                    f"amount={pos.amount} (negative=SHORT), entry_price={pos.entry_price}",
+                )
+            else:
+                self.logger().debug(f"No position found for {trading_pair} when placing CLOSE order")
+
+        # Note: Stop loss detection has been removed because:
+        # 1. The perpetual_market_making strategy has a bug in stop_loss_proposal
+        # 2. It only creates stop orders when market has already moved past the stop price
+        # 3. This is a strategy bug, not a connector issue
+        # 4. Trying to "fix" it in the connector causes more problems
+        #
+        # If stop losses are needed, the strategy itself needs to be fixed to:
+        # - Always place stop loss orders regardless of current market price
+        # - Use the correct order side (BUY for short stops, SELL for long stops)
+        # - Consider using trigger/stop orders instead of limit orders
+
+        # Regular order flow
         order_data = {
             "symbol": symbol,
-            "side": self.backpack_order_side(trade_type),
-            "orderType": self.backpack_order_type(order_type),
+            "side": utils.backpack_order_side(trade_type),
             "quantity": str(amount),
-            "clientId": order_id,
+            "clientId": numeric_client_id,  # Backpack expects integer clientId
         }
 
         # Add reduce-only flag for closing positions
+        # But first verify this order would actually reduce the position
         if reduce_only:
-            order_data["reduceOnly"] = "true"
+            # Check if we have a position and if this order would reduce it
+            if trading_pair in self._perpetual_trading.account_positions:
+                pos = self._perpetual_trading.account_positions[trading_pair]
+                # LONG position is reduced by SELL, SHORT by BUY
+                would_reduce = (
+                    (pos.position_side == PositionSide.LONG and trade_type == TradeType.SELL) or
+                    (pos.position_side == PositionSide.SHORT and trade_type == TradeType.BUY)
+                )
+                if would_reduce:
+                    order_data["reduceOnly"] = True  # Use boolean, not string
+                    self.logger().debug(
+                        f"Setting reduceOnly=True for {trade_type} order "
+                        f"to close {pos.position_side} position",
+                    )
+                else:
+                    self.logger().warning(
+                        f"Order validation: {trade_type} order would not reduce {pos.position_side} position. "
+                        f"Not setting reduceOnly flag. This may be intentional for complex strategies.",
+                    )
+            else:
+                self.logger().warning(f"reduceOnly requested but no position found for {trading_pair}")
 
-        # Add price for limit orders
-        if order_type == OrderType.LIMIT or order_type == OrderType.LIMIT_MAKER:
+        # Handle LIMIT_MAKER by converting to LIMIT with postOnly flag
+        if order_type == OrderType.LIMIT_MAKER:
+            order_data["orderType"] = "Limit"
             order_data["price"] = str(price)
+            order_data["postOnly"] = True
+        elif order_type == OrderType.LIMIT:
+            order_data["orderType"] = "Limit"
+            order_data["price"] = str(price)
+            # Add time in force if specified
+            time_in_force = kwargs.get("time_in_force")
+            if time_in_force:
+                # Time in force must be in the map
+                if time_in_force not in CONSTANTS.TIME_IN_FORCE_MAP:
+                    raise ValueError(f"Invalid time in force: {time_in_force}")
+                order_data["timeInForce"] = CONSTANTS.TIME_IN_FORCE_MAP[time_in_force]
+        else:  # MARKET order
+            order_data["orderType"] = "Market"
 
-        # Set time in force based on order type
-        if order_type == OrderType.LIMIT:
-            order_data["timeInForce"] = "GTC"  # Good Till Cancelled for regular limit orders
-        elif order_type == OrderType.LIMIT_MAKER:
-            order_data["timeInForce"] = "PostOnly"  # PostOnly for maker-only orders
+        # Add stop loss parameters if provided (for attached stop losses)
+        stop_loss_price = kwargs.get("stop_loss_price")
+        if stop_loss_price:
+            order_data["stopLossTriggerPrice"] = str(stop_loss_price)
+            stop_loss_limit_price = kwargs.get("stop_loss_limit_price")
+            if stop_loss_limit_price:
+                order_data["stopLossLimitPrice"] = str(stop_loss_limit_price)
+            # Default to MarkPrice for trigger by
+            order_data["stopLossTriggerBy"] = kwargs.get("stop_loss_trigger_by", "MarkPrice")
+
+        # Add take profit parameters if provided
+        take_profit_price = kwargs.get("take_profit_price")
+        if take_profit_price:
+            order_data["takeProfitTriggerPrice"] = str(take_profit_price)
+            take_profit_limit_price = kwargs.get("take_profit_limit_price")
+            if take_profit_limit_price:
+                order_data["takeProfitLimitPrice"] = str(take_profit_limit_price)
+            # Default to MarkPrice for trigger by
+            order_data["takeProfitTriggerBy"] = kwargs.get("take_profit_trigger_by", "MarkPrice")
+
+        # Log the final order data being sent to exchange
+        self.logger().debug(f"Sending order to Backpack: {order_data}")
 
         response = await self._api_post(
             path_url=CONSTANTS.ORDER_URL,
@@ -911,22 +1142,24 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
 
         try:
-            # Try to cancel by exchange order ID if available
+            # Prepare cancel data - must use data not params for Backpack DELETE endpoint
+            cancel_data: dict[str, Any]
             if tracked_order.exchange_order_id:
-                params = {
+                cancel_data = {
                     "symbol": symbol,
                     "orderId": tracked_order.exchange_order_id,
                 }
             else:
-                # Fall back to client order ID
-                params = {
+                # Fall back to client order ID - convert to numeric
+                numeric_client_id = self._id_mapper.get_numeric_id(order_id)
+                cancel_data = {
                     "symbol": symbol,
-                    "clientId": order_id,
+                    "clientId": numeric_client_id,  # Backpack accepts int in JSON body
                 }
 
             await self._api_delete(
                 path_url=CONSTANTS.CANCEL_URL,
-                params=params,
+                data=cancel_data,  # Pass as body data, not params
                 is_auth_required=True,
             )
 
@@ -1137,7 +1370,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             trading_pair=trading_pair,
             index_price=Decimal(str(mark_data["indexPrice"])),
             mark_price=Decimal(str(mark_data["markPrice"])),
-            next_funding_utc_timestamp=int(mark_data["nextFundingTime"]),
+            next_funding_utc_timestamp=int(int(mark_data["nextFundingTimestamp"]) / 1000),  # Convert ms to seconds
             rate=Decimal(str(mark_data["fundingRate"])),
         )
 
@@ -1258,7 +1491,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             data = order_msg.get("data", order_msg)
 
             # Check if this is a trade/fill event
-            if "tradeId" in data:
+            # Only process if it's actually an orderFill event (has trade data)
+            if data.get("e") == "orderFill":
                 self._process_trade_fill(data)
             else:
                 # Regular order status update
@@ -1271,27 +1505,44 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """Process trade fill event."""
         try:
             # Get order by exchange order ID
-            exchange_order_id = fill_data.get("orderId")
+            # WebSocket uses "i" for order ID, REST uses "orderId"
+            exchange_order_id = fill_data.get("orderId") or fill_data.get("i")
             if not exchange_order_id:
+                self.logger().error(f"No order ID in fill data: {fill_data}")
                 return
 
             # Find the tracked order
             tracked_order = None
             for order in self._order_tracker.active_orders.values():
-                if order.exchange_order_id == exchange_order_id:
+                if str(order.exchange_order_id) == str(exchange_order_id):
                     tracked_order = order
                     break
 
             if not tracked_order:
-                return
+                # Try by client order ID
+                client_order_id = fill_data.get("c")
+                if client_order_id:
+                    # Convert numeric client ID back to string format
+                    for order in self._order_tracker.active_orders.values():
+                        numeric_id = self._id_mapper.get_numeric_id(order.client_order_id)
+                        if str(numeric_id) == str(client_order_id):
+                            tracked_order = order
+                            break
+
+                if not tracked_order:
+                    self.logger().warning(
+                        f"Order not found for fill: exchange_id={exchange_order_id}, "
+                        f"client_id={client_order_id}",
+                    )
+                    return
 
             # Determine position action based on order side
             # For one-way mode: BUY opens long/closes short, SELL opens short/closes long
             position_action = tracked_order.position if hasattr(tracked_order, "position") else PositionAction.NIL
 
-            # Get fee details
-            fee_amount = Decimal(str(fill_data.get("fee", "0")))
-            fee_asset = fill_data.get("feeAsset", tracked_order.quote_asset)
+            # Get fee details - WebSocket uses "n" for fee, "N" for fee asset
+            fee_amount = Decimal(str(fill_data.get("fee") or fill_data.get("n", "0")))
+            fee_asset = fill_data.get("feeAsset") or fill_data.get("N") or tracked_order.quote_asset
 
             # Create flat_fees list - always include even if fee is zero
             flat_fees = [TokenAmount(token=fee_asset, amount=fee_amount)]
@@ -1304,20 +1555,55 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 flat_fees=flat_fees,
             )
 
+            # Extract trade details - WebSocket uses different field names
+            # t = trade ID, l = fill quantity, L = fill price
+            trade_id = fill_data.get("tradeId") or fill_data.get("t")
+            fill_quantity = fill_data.get("quantity") or fill_data.get("l")
+            fill_price = fill_data.get("price") or fill_data.get("L")
+            timestamp = fill_data.get("timestamp") or fill_data.get("T")  # T is engine timestamp in microseconds
+
+            if not all([trade_id, fill_quantity, fill_price]):
+                self.logger().error(
+                    f"Missing required fill fields: trade_id={trade_id}, "
+                    f"quantity={fill_quantity}, price={fill_price}",
+                )
+                return
+
             # Create trade update
             trade_update = TradeUpdate(
-                trade_id=str(fill_data["tradeId"]),
+                trade_id=str(trade_id),
                 client_order_id=tracked_order.client_order_id,
-                exchange_order_id=exchange_order_id,
+                exchange_order_id=str(exchange_order_id),
                 trading_pair=tracked_order.trading_pair,
-                fill_timestamp=(fill_data.get("timestamp") or self.current_timestamp * 1000) / 1000,
-                fill_price=Decimal(str(fill_data["price"])),  # Required field
-                fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
-                fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
+                # WebSocket timestamps are in microseconds
+                fill_timestamp=(timestamp or self.current_timestamp * 1_000_000) / 1_000_000,
+                fill_price=Decimal(str(fill_price)),
+                fill_base_amount=Decimal(str(fill_quantity)),
+                fill_quote_amount=Decimal(str(fill_price)) * Decimal(str(fill_quantity)),
                 fee=fee,
             )
 
             self._order_tracker.process_trade_update(trade_update)
+
+            # Check if order is fully filled and update state accordingly
+            # The WebSocket event 'orderFill' means a fill occurred, check if complete
+            executed_amount = tracked_order.executed_amount_base + Decimal(str(fill_quantity))
+            if executed_amount >= tracked_order.amount:
+                # Order is fully filled, update its state
+                order_update = OrderUpdate(
+                    client_order_id=tracked_order.client_order_id,
+                    exchange_order_id=str(exchange_order_id),
+                    trading_pair=tracked_order.trading_pair,
+                    update_timestamp=(timestamp or self.current_timestamp * 1_000_000) / 1_000_000,
+                    new_state=OrderState.FILLED,
+                )
+                self._order_tracker.process_order_update(order_update)
+                self.logger().debug(f"Order {tracked_order.client_order_id} fully filled")
+
+                # Important: After a fill, trigger a position update to ensure
+                # positions are correctly tracked even if WebSocket is delayed
+                # This helps prevent the race condition where positions disappear
+                safe_ensure_future(self._update_positions())
 
         except Exception:
             self.logger().exception(f"Error processing trade fill: {fill_data}")
@@ -1379,7 +1665,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         trade_type=trade_type,
                         price=price,
                         amount=quantity,
-                        creation_timestamp=float(order_data.get("timestamp", self.current_timestamp * 1000)) / 1000,
+                        # WebSocket timestamps are in microseconds
+                        creation_timestamp=(
+                            float(order_data.get("timestamp", self.current_timestamp * 1_000_000)) / 1_000_000
+                        ),
                     )
                     self._order_tracker.start_tracking_order(order)
                     tracked_order = order
@@ -1395,7 +1684,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 client_order_id=client_order_id,
                 exchange_order_id=order_data.get("id") or order_data.get("orderId"),  # Handle both formats
                 trading_pair=tracked_order.trading_pair,
-                update_timestamp=(order_data.get("timestamp") or self.current_timestamp * 1000) / 1000,
+                # WebSocket timestamps are in microseconds
+                update_timestamp=(order_data.get("timestamp") or self.current_timestamp * 1_000_000) / 1_000_000,
                 new_state=new_state,
             )
 
@@ -1482,6 +1772,20 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     async def _update_trading_fees(self):
         """Update trading fees from the exchange."""
+        # Ensure time is synchronized before making authenticated requests
+        if self._time_synchronizer and (
+            not hasattr(self._time_synchronizer, "_time_offset_ms") or not self._time_synchronizer._time_offset_ms
+        ):
+            try:
+                await self._time_synchronizer.update_server_time_offset_with_time_provider(
+                    time_provider=web_utils.get_current_server_time(
+                        throttler=self._throttler,
+                        domain=self._domain,
+                    ),
+                )
+            except Exception as e:
+                self.logger().warning(f"Failed to sync time: {e}")
+
         # Try to fetch fees from account endpoint if available
         try:
             account_info = await self._api_get(
@@ -1558,40 +1862,6 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 # Get collateral token from symbol info (required field)
                 collateral_token = symbol_info["quoteSymbol"]
 
-                # Extract margin and leverage data from API
-                max_leverage = symbol_info.get("maxLeverage")
-                initial_margin_ratio = symbol_info.get("initialMarginRatio")
-                maintenance_margin_ratio = symbol_info.get("maintenanceMarginRatio")
-
-                # Fail fast if critical margin parameters are missing
-                if max_leverage is None:
-                    raise ValueError(
-                        f"Market {symbol} missing required maxLeverage in API response. "
-                        "Cannot trade without proper leverage limits.",
-                    )
-
-                if initial_margin_ratio is None:
-                    raise ValueError(
-                        f"Market {symbol} missing required initialMarginRatio in API response. "
-                        "Cannot calculate positions without margin requirements.",
-                    )
-
-                if maintenance_margin_ratio is None:
-                    raise ValueError(
-                        f"Market {symbol} missing required maintenanceMarginRatio in API response. "
-                        "Cannot manage risk without maintenance margin data.",
-                    )
-
-                # Store market-specific margin requirements
-                self._market_margin_requirements[trading_pair] = {
-                    "max_leverage": Decimal(str(max_leverage)),
-                    "initial_margin": Decimal(str(initial_margin_ratio)),
-                    "maintenance_margin": Decimal(str(maintenance_margin_ratio)),
-                }
-
-                # Also store max leverage in the leverage map for compatibility
-                self._leverage_map[trading_pair] = int(max_leverage)
-
                 trading_rule = TradingRule(
                     trading_pair=trading_pair,
                     min_order_size=min_order_size,
@@ -1616,7 +1886,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         return trading_rules
 
-    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: dict[str, Any]):
+    def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: dict[str, Any] | list[dict[str, Any]]):
         """Initialize the trading pair symbol mapping from exchange info.
 
         Args:
@@ -1625,7 +1895,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         mapping = {}
 
         # Handle exchange_info as list or dict
-        symbols_list = exchange_info if isinstance(exchange_info, list) else exchange_info.get("symbols", [])
+        symbols_list: list[dict[str, Any]] = (
+            exchange_info if isinstance(exchange_info, list) else exchange_info.get("symbols", [])
+        )
 
         for symbol_info in symbols_list:
             try:
@@ -1677,7 +1949,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """Set leverage for a trading pair.
 
         Note: Backpack uses account-wide leverage limits rather than per-position leverage.
-        This method stores the leverage locally for use in calculations.
+        This method sets the account-wide leverage limit via the API.
 
         Args:
             trading_pair: The trading pair
@@ -1686,19 +1958,44 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         Returns:
             Tuple of (success, message)
         """
-        # Backpack doesn't support per-position leverage setting
-        # Leverage is an account-wide setting (leverageLimit)
-        # Store the desired leverage locally for calculations
+        try:
+            # Set the account-wide leverage limit via API
+            # Use direct REST call to handle empty response properly
+            base_url = CONSTANTS.REST_URLS.get(self._domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+            url = f"{base_url}api/v1/account"
 
-        self._leverage_map[trading_pair] = leverage
-        self._perpetual_trading.set_leverage(trading_pair, leverage)
+            rest_assistant = await self._web_assistants_factory.get_rest_assistant()
 
-        msg = (
-            f"Leverage {leverage}x stored locally for {trading_pair}. Note: Backpack uses account-wide leverage limits."
-        )
-        self.logger().info(msg)
+            async with self._throttler.execute_task(CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID):
+                response = await rest_assistant.execute_request_and_get_response(
+                    url=url,
+                    throttler_limit_id=CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID,
+                    data={"leverageLimit": str(leverage)},
+                    method=RESTMethod.PATCH,
+                    is_auth_required=True,
+                    headers={"Content-Type": "application/json"},
+                )
 
-        return True, msg
+                # Check if successful (200 status)
+                if response.status != 200:
+                    text = await response.text()
+                    raise Exception(f"HTTP {response.status}: {text}")
+
+            # Success - Store the leverage locally for calculations
+            self._leverage_map[trading_pair] = leverage
+            self._perpetual_trading.set_leverage(trading_pair, leverage)
+
+            msg = f"Successfully set account-wide leverage limit to {leverage}x"
+            self.logger().info(msg)
+            return True, msg
+
+        except Exception as e:
+            msg = f"Failed to set leverage: {e}"
+            self.logger().error(msg)
+            # Still store locally as a fallback
+            self._leverage_map[trading_pair] = leverage
+            self._perpetual_trading.set_leverage(trading_pair, leverage)
+            return False, msg
 
     async def _fetch_last_fee_payment(self, trading_pair: str) -> tuple[int, Decimal, Decimal]:
         """Fetch the last funding fee payment for a trading pair.

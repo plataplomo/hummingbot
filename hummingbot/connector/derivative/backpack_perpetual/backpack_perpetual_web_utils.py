@@ -109,7 +109,7 @@ async def get_current_server_time(
         domain: Exchange domain
 
     Returns:
-        Server timestamp in seconds
+        Server timestamp in milliseconds (for TimeSynchronizer compatibility)
     """
     throttler = throttler or create_throttler()
 
@@ -135,20 +135,28 @@ async def get_current_server_time(
         # Response could be dict or string from execute_request
         if isinstance(response, str):
             # Try to parse as JSON if it's a string
-            data: dict[str, Any] = json.loads(response)
-        else:
-            data = response
-
-        # Backpack returns direct integer timestamp in milliseconds
-        if isinstance(data, (int, float)):
-            return data / 1000.0
-        elif isinstance(data, dict):
-            server_time_ms = data.get("serverTime", data.get("timestamp"))
+            try:
+                parsed = json.loads(response)
+                # Check if it's a numeric response
+                if isinstance(parsed, (int, float)):
+                    # Already in milliseconds, return as-is
+                    return float(parsed)
+                elif isinstance(parsed, dict):
+                    server_time_ms = parsed.get("serverTime", parsed.get("timestamp"))
+                    if server_time_ms is None:
+                        raise OSError(f"No time field in response: {parsed}")
+                    return float(server_time_ms)
+            except json.JSONDecodeError:
+                pass
+        elif isinstance(response, dict):
+            server_time_ms = response.get("serverTime", response.get("timestamp"))
             if server_time_ms is None:
-                raise OSError(f"No time field in response: {data}")
-            return int(server_time_ms) / 1000.0
-        else:
-            return __import__("time").time()
+                raise OSError(f"No time field in response: {response}")
+            # TimeSynchronizer expects milliseconds, don't divide
+            return float(server_time_ms)
+
+        # Fallback to current time in milliseconds
+        return time.time() * 1000
 
 
 async def api_request(
@@ -221,12 +229,17 @@ async def api_request(
                 data=data,
                 headers=headers,
                 timeout=timeout,
+                is_auth_required=is_auth_required,
             )
+
+            # For PATCH requests that return 200 with no content, return empty dict
+            if method == RESTMethod.PATCH and not response:
+                return {}
 
             # Response could be str or dict from execute_request
             if isinstance(response, str):
                 # Try to parse as JSON if it's a string
-                return json.loads(response)
+                return json.loads(response) if response else {}
             return response
 
         except asyncio.TimeoutError as e:

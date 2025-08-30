@@ -142,9 +142,10 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 "trading_pair": trading_pair,
                 "bids": snapshot_data.get("bids", []),
                 "asks": snapshot_data.get("asks", []),
-                "update_id": int(snapshot_data.get("timestamp", 0)),
+                "update_id": int(snapshot_data.get("lastUpdateId", 0)),
             },
-            timestamp=snapshot_data.get("timestamp", time.time() * 1000) / 1000.0,
+            # REST depth endpoint returns timestamp in microseconds
+            timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
         )
 
         return snapshot_msg
@@ -175,7 +176,9 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 "symbol": symbol,
                 "bids": response.get("bids", []),
                 "asks": response.get("asks", []),
-                "timestamp": response.get("timestamp", time.time() * 1000),
+                "lastUpdateId": int(response.get("lastUpdateId", 0)),
+                # REST depth endpoint returns timestamp in microseconds
+                "timestamp": response.get("timestamp", time.time() * 1_000_000),
             }
         # Handle unexpected list format
         return {
@@ -183,7 +186,9 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             "symbol": symbol,
             "bids": [],
             "asks": [],
-            "timestamp": time.time() * 1000,
+            "lastUpdateId": 0,
+            # Fake timestamp in microseconds for consistency
+            "timestamp": time.time() * 1_000_000,
         }
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
@@ -198,7 +203,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
         await ws.connect(
             ws_url=ws_url,
-            message_timeout=CONSTANTS.WS_MESSAGE_TIMEOUT,
+            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
         )
         return ws
 
@@ -335,7 +340,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                         else float(TradeType.SELL.value)
                     ),
                 },
-                timestamp=trade_data.get("timestamp", trade_data.get("T", time.time() * 1000)) / 1000.0,
+                # WebSocket T field is in microseconds
+                timestamp=trade_data.get("timestamp", trade_data.get("T", time.time() * 1_000_000)) / 1_000_000,
             )
 
             await message_queue.put(trade_message)
@@ -373,7 +379,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     "update_id": depth_data.get("lastUpdateId", depth_data.get("u", 0)),
                     "first_update_id": depth_data.get("firstUpdateId", depth_data.get("U", 0)),
                 },
-                timestamp=depth_data.get("timestamp", depth_data.get("T", time.time() * 1000)) / 1000.0,
+                # WebSocket T field is in microseconds
+                timestamp=depth_data.get("timestamp", depth_data.get("T", time.time() * 1_000_000)) / 1_000_000,
             )
 
             await message_queue.put(diff_message)
@@ -407,9 +414,10 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                     "trading_pair": trading_pair,
                     "bids": snapshot_data.get("bids", []),
                     "asks": snapshot_data.get("asks", []),
-                    "update_id": snapshot_data.get("lastUpdateId", 0),
+                    "update_id": int(snapshot_data.get("lastUpdateId", 0)),
                 },
-                timestamp=snapshot_data.get("timestamp", time.time() * 1000) / 1000.0,
+                # REST depth endpoint returns timestamp in microseconds
+                timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
             )
 
             await message_queue.put(snapshot_message)

@@ -41,11 +41,12 @@ ORDER_URL = "api/v1/order"
 CANCEL_URL = "api/v1/order"
 CANCEL_ALL_URL = "api/v1/orders"
 OPEN_ORDERS_URL = "api/v1/orders"
-ORDER_HISTORY_URL = "api/v1/orderHistory"
-FILLS_URL = "api/v1/fills"
+ORDER_HISTORY_URL = "wapi/v1/history/orders"
+FILLS_URL = "wapi/v1/history/fills"
 
 # Account endpoints
 BALANCE_URL = "api/v1/capital"
+COLLATERAL_URL = "api/v1/capital/collateral"  # For getting full balance info including auto-lent
 ACCOUNT_URL = "api/v1/account"
 
 # Perpetual-specific private endpoints
@@ -77,81 +78,86 @@ WS_OPEN_INTEREST_CHANNEL = "openInterest"  # Full format: openInterest.<symbol>
 BROKER_ID = "HBOT"
 MAX_ORDER_ID_LEN = 32
 
-# Rate limiting
+# Rate limiting based on official Backpack Discord information:
+# - All endpoints: 1000 requests per minute (16.67 requests per second)
+# - Historical endpoints: 60 requests per 2 minutes (0.5 requests per second)
 RATE_LIMIT = "RATE_LIMIT"
 PUBLIC_ENDPOINT_LIMIT_ID = "PublicEndpoints"
 PRIVATE_ENDPOINT_LIMIT_ID = "PrivateEndpoints"
+HISTORICAL_ENDPOINT_LIMIT_ID = "HistoricalEndpoints"
 
 RATE_LIMITS = [
-    # Pool limits
-    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1200, time_interval=60),
-    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=100, time_interval=60),
-    # Specific endpoint limits with weighted connections
+    # Main pool limits - 1000 requests per minute for all endpoints
+    RateLimit(limit_id=PUBLIC_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
+    RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
+    # Historical endpoints - 60 requests per 2 minutes
+    RateLimit(limit_id=HISTORICAL_ENDPOINT_LIMIT_ID, limit=60, time_interval=120),
+    # Order management endpoints (private) - share the main 1000/min limit
     RateLimit(
         limit_id=ORDER_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second (1000/60)
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=CANCEL_URL,
-        limit=10,
+        limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=POSITIONS_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=FUNDING_RATE_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=BALANCE_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     # Public market data endpoints
     RateLimit(
         limit_id=EXCHANGE_INFO_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TICKER_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=ORDER_BOOK_URL,
-        limit=100,
-        time_interval=60,
-        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=2)],
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TRADES_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=CANDLES_URL,
-        limit=100,
-        time_interval=60,
-        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
         limit_id=TIME_URL,
-        limit=100,
-        time_interval=60,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
 ]
@@ -203,6 +209,9 @@ MARGIN_TYPE_MAP = {
     "Isolated": "ISOLATED",
 }
 
+# Timing constants
+HEARTBEAT_TIME_INTERVAL = 30.0  # WebSocket heartbeat interval in seconds
+
 # Market configuration
 # IMPORTANT: All market-specific parameters MUST be fetched from the /api/v1/markets endpoint
 # These values are NOT hardcoded as they vary per market:
@@ -223,6 +232,9 @@ MARGIN_TYPE_MAP = {
 # Request timeouts
 REQUEST_TIMEOUT = 10.0
 
+# Authentication window (5 seconds)
+AUTH_WINDOW_MS = 5000
+
 # WebSocket configuration
 WS_HEARTBEAT_INTERVAL = 30  # Send ping every 30 seconds
 WS_MESSAGE_TIMEOUT = 60  # Timeout for receiving messages
@@ -234,6 +246,12 @@ ORDER_NOT_EXIST_ERROR_CODE = "RESOURCE_NOT_FOUND"  # When order doesn't exist
 ORDER_NOT_EXIST_MESSAGE = "Order does not exist"
 UNKNOWN_ORDER_ERROR_CODE = "INVALID_ORDER"  # When order is invalid
 UNKNOWN_ORDER_MESSAGE = "Invalid order"
+
+# Additional error messages for order cancellation
+ORDER_NOT_FOUND_MESSAGE = "order not found"
+ORDER_DOES_NOT_EXIST_MESSAGE = "does not exist"
+UNKNOWN_ORDER_ALT_MESSAGE = "unknown order"
+INVALID_CLIENT_REQUEST_MESSAGE = "invalid_client_request"
 
 # Trading rules update interval
 TRADING_RULES_UPDATE_INTERVAL = 3600  # Update every hour

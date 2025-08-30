@@ -4,15 +4,18 @@ Reuses the same authentication logic as the spot connector.
 
 import base64
 import json
+import logging
 import time
-from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
+from hummingbot.connector.derivative.backpack_perpetual import backpack_perpetual_constants as CONSTANTS
+from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
+from hummingbot.logger import HummingbotLogger
 
 
 class BackpackPerpetualAuth(AuthBase):
@@ -28,22 +31,30 @@ class BackpackPerpetualAuth(AuthBase):
     - X-Window: Request validity window (5000ms)
     """
 
+    _logger = None
+
+    @classmethod
+    def logger(cls) -> HummingbotLogger:
+        if cls._logger is None:
+            cls._logger = cast(HummingbotLogger, logging.getLogger(HummingbotLogger.logger_name_for_class(cls)))
+        return cls._logger
+
     def __init__(
         self,
         api_key: str,
         api_secret: str,
-        time_provider: Callable[[], int] | None = None,
+        time_provider: TimeSynchronizer,
     ):
         """Initialize Backpack Perpetual authentication.
 
         Args:
             api_key: Backpack API key
             api_secret: Backpack API secret (base64 encoded private key)
-            time_provider: Function to get current time (for testing)
+            time_provider: TimeSynchronizer for getting synchronized time
         """
         self.api_key = api_key
         self.api_secret = api_secret
-        self._time_provider = time_provider or self._get_timestamp
+        self.time_provider = time_provider
 
         # Load and validate the private key
         try:
@@ -56,8 +67,10 @@ class BackpackPerpetualAuth(AuthBase):
         self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
             # Account endpoints
             ("GET", "/api/v1/account"): "accountQuery",
+            ("PATCH", "/api/v1/account"): "accountUpdate",
             # Capital and Balance endpoints
             ("GET", "/api/v1/capital"): "balanceQuery",
+            ("GET", "/api/v1/capital/collateral"): "collateralQuery",
             # Position endpoints for perpetuals
             ("GET", "/api/v1/position"): "positionQuery",
             # Order Management endpoints
@@ -66,16 +79,17 @@ class BackpackPerpetualAuth(AuthBase):
             ("DELETE", "/api/v1/orders"): "orderCancelAll",
             ("GET", "/api/v1/order"): "orderQuery",
             ("GET", "/api/v1/orders"): "orderQueryAll",
-            # Historical Data endpoints
-            ("GET", "/api/v1/history/orders"): "orderHistoryQueryAll",
-            ("GET", "/api/v1/history/fills"): "fillHistoryQueryAll",
-            # Trading Data endpoints
-            ("GET", "/api/v1/trades/history"): "fillHistoryQueryAll",
-            ("GET", "/api/v1/fills"): "fillHistoryQueryAll",
+            # Historical Data endpoints (using wapi for history)
+            ("GET", "/wapi/v1/history/orders"): "orderHistoryQueryAll",
+            ("GET", "/wapi/v1/history/fills"): "fillHistoryQueryAll",
+            # Funding history endpoints (for perpetuals)
+            ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
         }
 
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
+        # Backpack expects current Unix timestamp in milliseconds
+        # Just like the spot connector, we use time.time() directly
         return int(time.time() * 1000)
 
     def _generate_signature(self, payload: str) -> str:
@@ -158,7 +172,7 @@ class BackpackPerpetualAuth(AuthBase):
                     if isinstance(value, bool):
                         formatted_value = "true" if value else "false"
                     payload_parts.append(f"{key}={formatted_value}")
-        elif method.upper() in ["POST", "PUT", "DELETE"] and body:
+        elif method.upper() in ["POST", "PUT", "DELETE", "PATCH"] and body:
             # For POST/PUT/DELETE, parse JSON body and add as parameters
             try:
                 body_dict = json.loads(body) if isinstance(body, str) else body
@@ -191,8 +205,8 @@ class BackpackPerpetualAuth(AuthBase):
         Returns:
             Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
         """
-        timestamp = str(self._time_provider())
-        window = "5000"
+        timestamp = str(self._get_timestamp())
+        window = str(CONSTANTS.AUTH_WINDOW_MS)
 
         # Build signature payload using instruction-based format
         signature_payload = self._build_signature_payload(
@@ -296,20 +310,20 @@ class BackpackPerpetualAuth(AuthBase):
         Returns:
             Authentication message to send after WebSocket connection
         """
-        timestamp = str(self._time_provider())
-        window = "5000"
+        timestamp = str(self._get_timestamp())
+        window = str(CONSTANTS.AUTH_WINDOW_MS)
 
         # Build auth payload for WebSocket using instruction-based format
         # For WebSocket auth, the instruction is "subscribe"
         auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
         signature = self._generate_signature(auth_payload)
 
-        # Per Backpack OpenAPI spec, WebSocket auth uses SUBSCRIBE method with signature array
+        # Backpack WebSocket auth: params array contains [apiKey, signature, timestamp, window]
+        # This is sent as the first SUBSCRIBE message to authenticate
         return {
             "method": "SUBSCRIBE",
-            "params": [],  # Streams will be added separately in subscription messages
-            "signature": [
-                self.api_key,    # verifying key (base64 encoded public key)
+            "params": [
+                self.api_key,    # API key
                 signature,       # signature (base64 encoded)
                 timestamp,       # timestamp in milliseconds
                 window,          # window in milliseconds

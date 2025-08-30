@@ -16,6 +16,7 @@ class RESTMethod(Enum):
     POST = "POST"
     PUT = "PUT"
     DELETE = "DELETE"
+    PATCH = "PATCH"
 
     def __str__(self):
         obj_str = repr(self)

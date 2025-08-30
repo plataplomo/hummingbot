@@ -1,5 +1,6 @@
 """Utility functions for Backpack Perpetual Exchange connector."""
 
+import secrets
 import time
 from decimal import Decimal
 from typing import Any, Literal
@@ -12,7 +13,6 @@ from hummingbot.core.data_type.in_flight_order import InFlightOrder
 from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
 from . import backpack_perpetual_constants as CONSTANTS
-
 
 # Required constants for AllConnectorSettings
 CENTRALIZED = True
@@ -122,25 +122,20 @@ def convert_from_exchange_trading_pair(exchange_trading_pair: str) -> str | None
 def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     """Convert Hummingbot format to Backpack exchange format.
 
-    For perpetuals with standard quote currency:
-    - BTC-USDC -> BTC_PERP
-    - SOL-USDC -> SOL_PERP
-    - ETH-USDC -> ETH_PERP
-
-    For other quote currencies, the full format would be used (e.g., BTC-USD -> BTC_USD_PERP)
+    For perpetuals:
+    - BTC-USDC -> BTC_USDC_PERP
+    - SOL-USDC -> SOL_USDC_PERP
+    - ETH-USDC -> ETH_USDC_PERP
 
     Args:
         hb_trading_pair: Trading pair in Hummingbot format (e.g., "BTC-USDC")
 
     Returns:
-        Backpack formatted trading pair (e.g., "BTC_PERP")
+        Backpack formatted trading pair (e.g., "BTC_USDC_PERP")
     """
     base, quote = split_trading_pair(hb_trading_pair)
 
-    # For USDC perpetuals, use simplified format (e.g., BTC_PERP)
-    if quote == "USDC":
-        return f"{base}_PERP"
-    # For other quote currencies, use full format
+    # All perpetuals use full format with quote currency
     return f"{base}_{quote}_PERP"
 
 
@@ -402,3 +397,70 @@ def get_next_funding_timestamp(current_timestamp: float | None = None) -> int:
     next_funding = ((int(current_timestamp) // funding_interval) + 1) * funding_interval
 
     return next_funding
+
+
+def backpack_order_side(trade_type: TradeType) -> str:
+    """Convert Hummingbot trade type to Backpack order side.
+
+    Args:
+        trade_type: Hummingbot trade type
+
+    Returns:
+        Backpack order side ("Bid" or "Ask")
+    """
+    # Backpack uses Bid/Ask instead of Buy/Sell
+    return "Bid" if trade_type == TradeType.BUY else "Ask"
+
+
+class BackpackIDMapper:
+    """Handles bidirectional mapping between Hummingbot string IDs and Backpack numeric IDs.
+
+    Backpack requires integer clientId (uint32), while Hummingbot uses string IDs.
+    This class maintains the mapping between the two systems.
+    """
+
+    def __init__(self):
+        """Initialize the ID mapper with empty mappings."""
+        self._hb_to_numeric: dict[str, int] = {}
+        self._numeric_to_hb: dict[int, str] = {}
+
+    def get_numeric_id(self, hb_order_id: str) -> int:
+        """Convert Hummingbot string order ID to Backpack numeric ID.
+
+        Args:
+            hb_order_id: Hummingbot's string order ID
+
+        Returns:
+            Numeric ID for Backpack API
+        """
+        if hb_order_id not in self._hb_to_numeric:
+            # Generate a numeric client ID that fits in uint32 (max value: 4294967295)
+            # Use timestamp in milliseconds modulo to fit in range
+            # Add random component for uniqueness within the same millisecond
+            timestamp_component = int(time.time() * 1000) % 1000000000  # Keep under 1 billion
+            random_component = secrets.randbelow(1000)  # 0-999
+
+            # Combine timestamp and random, ensuring we stay under uint32 max
+            numeric_id = (timestamp_component * 1000 + random_component) % 4294967296
+
+            # Store bidirectional mapping
+            self._hb_to_numeric[hb_order_id] = numeric_id
+            self._numeric_to_hb[numeric_id] = hb_order_id
+
+        return self._hb_to_numeric[hb_order_id]
+
+    def get_hb_id(self, numeric_id: int) -> str | None:
+        """Convert Backpack numeric ID back to Hummingbot string order ID.
+
+        Args:
+            numeric_id: Backpack's numeric client ID
+
+        Returns:
+            Hummingbot's string order ID, or None if not found
+        """
+        return self._numeric_to_hb.get(numeric_id)
+
+    def clear(self):
+        """Clear all mappings."""
+        self._hb_to_numeric.clear()
+        self._numeric_to_hb.clear()

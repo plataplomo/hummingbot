@@ -123,7 +123,7 @@ async def get_current_server_time(
         domain: Exchange domain
 
     Returns:
-        Server time as Unix timestamp in seconds
+        Server time as Unix timestamp in milliseconds (for TimeSynchronizer compatibility)
     """
     throttler = throttler or create_throttler()
     # Create temporary factory without time sync to avoid circular dependency
@@ -149,15 +149,15 @@ async def get_current_server_time(
             # Backpack may return server time in different formats
             if isinstance(data, dict):
                 # Standard format with serverTime key
-                return data.get("serverTime", time.time() * 1000) / 1000
+                return float(data.get("serverTime", time.time() * 1000))
             elif isinstance(data, (int, float)):
                 # Direct timestamp format (already in milliseconds)
-                return data / 1000
+                return float(data)
             else:
                 # Fallback for unexpected format
-                return time.time()
-        # Fallback to local time if server time not available
-        return time.time()
+                return time.time() * 1000
+        # Fallback to local time if server time not available (in milliseconds)
+        return time.time() * 1000
 
 
 def create_throttler(domain: str = CONSTANTS.DEFAULT_DOMAIN) -> AsyncThrottler:

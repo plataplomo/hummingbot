@@ -83,7 +83,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
                         continue
                     self._last_recv_time = self._time()
 
-                    data = json.loads(ws_response.data)
+                    # Handle both string and dict responses
+                    data = ws_response.data if isinstance(ws_response.data, dict) else json.loads(ws_response.data)
 
                     # Process different message types
                     processed_message = self._process_event(data)
@@ -111,7 +112,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
         await self._ws_assistant.connect(
             ws_url=ws_url,
-            message_timeout=CONSTANTS.WS_MESSAGE_TIMEOUT,
+            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
         )
         return self._ws_assistant
 
@@ -124,34 +125,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         Returns:
             True if authentication successful
         """
-        try:
-            # Send authentication message
-            auth_msg = self._auth.get_ws_auth_message()
-            auth_request = WSJSONRequest(payload=auth_msg)
-            await ws.send(auth_request)
-
-            # Wait for auth response
-            auth_response_timeout = 10.0
-            auth_response = await asyncio.wait_for(
-                ws.receive(),
-                timeout=auth_response_timeout,
-            )
-
-            response_data = json.loads(auth_response.data) if auth_response else {}
-
-            # Check auth success
-            if response_data.get("result") == "success" or response_data.get("type") == "authenticated":
-                self.logger().info("WebSocket authentication successful")
-                return True
-            self.logger().error(f"WebSocket authentication failed: {response_data}")
-            return False
-
-        except asyncio.TimeoutError:
-            self.logger().error("WebSocket authentication timeout")
-            return False
-        except Exception:
-            self.logger().exception("Error during WebSocket authentication")
-            return False
+        # For Backpack, authentication happens with the subscription message
+        # We don't send a separate auth message
+        # Authentication params are included with each private channel subscription
+        self.logger().debug("WebSocket connected, authentication will happen with subscription")
+        return True
 
     async def _subscribe_to_private_channels(self, ws: WSAssistant):
         """Subscribe to private WebSocket channels.
@@ -159,23 +137,38 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         Args:
             ws: WebSocket assistant
         """
-        # Subscribe to all required private channels
-        # Backpack uses the format: {"method": "SUBSCRIBE", "params": ["stream1", "stream2", ...]}
+        # For Backpack, authentication and subscription are combined
+        # We need to send auth params with each private channel subscription
+        timestamp = str(int(time.time() * 1000))
+        window = str(CONSTANTS.AUTH_WINDOW_MS)
+
+        # Build auth payload
+        auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
+        signature = self._auth._generate_signature(auth_payload)
+
+        # Subscribe to private channels with authentication
+        # Note: account.balanceUpdate might not exist in perpetual API
         channels = [
             CONSTANTS.WS_ACCOUNT_ORDERS_CHANNEL,  # Order updates (includes fills)
-            CONSTANTS.WS_ACCOUNT_BALANCES_CHANNEL,  # Balance updates
             CONSTANTS.WS_ACCOUNT_POSITIONS_CHANNEL,  # Position updates (perpetual-specific)
             # Note: Funding and liquidation events are typically included in position updates
         ]
 
+        # Include auth params with the subscription
         subscribe_msg = {
             "method": "SUBSCRIBE",
             "params": channels,
+            "signature": [
+                self._auth.api_key,
+                signature,
+                timestamp,
+                window,
+            ],
         }
 
         subscribe_request = WSJSONRequest(payload=subscribe_msg)
         await ws.send(subscribe_request)
-        self.logger().info(f"Subscribed to private channels: {channels}")
+        self.logger().debug(f"Subscribed to private channels: {channels}")
 
     def _process_event(self, event: dict[str, Any]) -> dict[str, Any] | None:
         """Process WebSocket events and route them appropriately.
