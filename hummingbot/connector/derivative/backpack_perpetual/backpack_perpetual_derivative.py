@@ -936,7 +936,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             self._perpetual_trading.account_positions[trading_pair] = position
 
             # Log position update for debugging
-            self.logger().info(
+            self.logger().debug(
                 f"Position updated for {trading_pair}: side={position.position_side}, "
                 f"amount={position.amount} (signed), entry_price={position.entry_price}",
             )
@@ -1019,7 +1019,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         reduce_only = position_action == PositionAction.CLOSE
 
         # Log detailed order information for debugging
-        self.logger().info(
+        self.logger().debug(
             f"Placing order: symbol={symbol}, trade_type={trade_type}, "
             f"order_type={order_type}, price={price}, amount={amount}, "
             f"position_action={position_action}, reduce_only={reduce_only}",
@@ -1068,7 +1068,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 )
                 if would_reduce:
                     order_data["reduceOnly"] = True  # Use boolean, not string
-                    self.logger().info(
+                    self.logger().debug(
                         f"Setting reduceOnly=True for {trade_type} order "
                         f"to close {pos.position_side} position",
                     )
@@ -1119,7 +1119,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             order_data["takeProfitTriggerBy"] = kwargs.get("take_profit_trigger_by", "MarkPrice")
 
         # Log the final order data being sent to exchange
-        self.logger().info(f"Sending order to Backpack: {order_data}")
+        self.logger().debug(f"Sending order to Backpack: {order_data}")
 
         response = await self._api_post(
             path_url=CONSTANTS.ORDER_URL,
