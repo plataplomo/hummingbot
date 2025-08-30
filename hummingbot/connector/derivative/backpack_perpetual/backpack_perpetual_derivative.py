@@ -824,33 +824,51 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Don't re-raise - similar to other perp connectors
 
     async def _update_positions(self):
-        """Update open positions."""
-        response = await self._api_get(
-            path_url=CONSTANTS.POSITIONS_URL,
-            is_auth_required=True,
-        )
+        """Update open positions.
 
-        # Handle both list format (direct response) and object format (wrapped in "positions" key)
-        # Normalize response to list format
-        positions = web_utils.normalize_response_to_list(response)
+        Following the pattern from Binance and Bybit connectors:
+        - Only remove positions when they are explicitly closed (amount = 0)
+        - Don't delete positions just because they're missing from one API response
+        - This prevents race conditions where positions disappear temporarily
+        """
+        try:
+            response = await self._api_get(
+                path_url=CONSTANTS.POSITIONS_URL,
+                is_auth_required=True,
+            )
 
-        # Track which trading pairs have positions in the response
-        trading_pairs_in_response = set()
+            # Handle both list format (direct response) and object format (wrapped in "positions" key)
+            # Normalize response to list format
+            positions = web_utils.normalize_response_to_list(response)
 
-        for position_data in positions:
-            symbol = position_data.get("symbol")
-            if symbol:
-                trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-                # Only process positions for trading pairs we're actually tracking
-                if trading_pair and self._trading_pairs and trading_pair in self._trading_pairs:
-                    trading_pairs_in_response.add(trading_pair)
-                    self._process_position_update(position_data)
+            # Log the number of positions received for debugging
+            if positions:
+                self.logger().debug(f"Received {len(positions)} position(s) from API")
+            else:
+                self.logger().debug("No positions returned from API (empty response)")
 
-        # Remove positions that are no longer in the response
-        current_positions = list(self._perpetual_trading.account_positions.keys())
-        for trading_pair in current_positions:
-            if trading_pair not in trading_pairs_in_response:
-                del self._perpetual_trading.account_positions[trading_pair]
+            # Process all positions from the API
+            for position_data in positions:
+                symbol = position_data.get("symbol")
+                if symbol:
+                    trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+                    # Only process positions for trading pairs we're actually tracking
+                    if trading_pair and self._trading_pairs and trading_pair in self._trading_pairs:
+                        self._process_position_update(position_data)
+
+            # NOTE: Unlike the previous implementation, we do NOT delete positions
+            # that are missing from the response. Positions should only be removed
+            # when they are explicitly closed (handled in _process_position_update
+            # when netQuantity == 0)
+
+            # Log current tracked positions for debugging
+            if self._perpetual_trading.account_positions:
+                self.logger().debug(
+                    f"Currently tracking {len(self._perpetual_trading.account_positions)} position(s): "
+                    f"{list(self._perpetual_trading.account_positions.keys())}",
+                )
+        except Exception as e:
+            self.logger().error(f"Error updating positions: {e}", exc_info=True)
 
     def _process_position_update(self, position_data: dict[str, Any]):
         """Process a position update from API or WebSocket."""
@@ -879,9 +897,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Determine position side - could be from 'side' field or calculated from quantity
             is_long = position_data["side"] in ["LONG", "Long"] if "side" in position_data else net_quantity > 0
 
-            # Skip if no position
+            # Only remove position if explicitly closed (amount = 0)
             if abs(net_quantity) == Decimal(0):
                 if trading_pair in self._perpetual_trading.account_positions:
+                    self.logger().info(f"Position closed for {trading_pair}, removing from tracking")
                     del self._perpetual_trading.account_positions[trading_pair]
                 return
 
@@ -900,12 +919,16 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Trust exchange data structure
             entry_price = Decimal(str(position_data.get("entryPrice", position_data.get("B"))))
 
+            # IMPORTANT: The perpetual_market_making strategy expects amount to be:
+            # - Positive for LONG positions
+            # - Negative for SHORT positions
+            # It uses position.amount < 0 to check if position is SHORT
             position = Position(
                 trading_pair=trading_pair,
                 position_side=PositionSide.LONG if is_long else PositionSide.SHORT,
                 unrealized_pnl=unrealized_pnl,
                 entry_price=entry_price,
-                amount=abs(net_quantity),
+                amount=net_quantity,  # Keep sign! Negative for SHORT, positive for LONG
                 leverage=self._leverage_map.get(trading_pair, position_data.get("leverage", 1)),
             )
 
@@ -915,8 +938,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Log position update for debugging
             self.logger().info(
                 f"Position updated for {trading_pair}: side={position.position_side}, "
-                f"amount={position.amount}, entry_price={position.entry_price}, "
-                f"net_quantity={net_quantity}",
+                f"amount={position.amount} (signed), entry_price={position.entry_price}",
             )
 
             # Check for margin call conditions based on maintenance margin and liquidation price
@@ -997,158 +1019,107 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         reduce_only = position_action == PositionAction.CLOSE
 
         # Log detailed order information for debugging
-        self.logger().debug(
-            f"Order details: symbol={symbol}, trade_type={trade_type}, "
+        self.logger().info(
+            f"Placing order: symbol={symbol}, trade_type={trade_type}, "
             f"order_type={order_type}, price={price}, amount={amount}, "
             f"position_action={position_action}, reduce_only={reduce_only}",
         )
 
-        # Check if this is a stop loss order attempt
-        # The strategy places stop losses as LIMIT orders with position_action=CLOSE
-        # We need to detect these and convert them to trigger orders
-        is_stop_loss_attempt = False
-        corrected_trade_type = trade_type  # Track if we need to correct the trade type
-
-        if (
-            reduce_only
-            and order_type == OrderType.LIMIT
-            and price is not None
-            and trading_pair in self._perpetual_trading.account_positions
-        ):
-            position = self._perpetual_trading.account_positions[trading_pair]
-            self.logger().info(
-                f"Checking potential stop loss: position_side={position.position_side}, "
-                f"entry_price={position.entry_price}, order_price={price}, "
-                f"trade_type={trade_type}",
-            )
-
-            # For long positions: stop loss is a sell below entry price
-            # For short positions: stop loss is a buy above entry price
-            if (
-                position.position_side == PositionSide.LONG
-                and trade_type == TradeType.SELL
-                and price < position.entry_price
-            ):
-                # Correct: SELL below entry for long stop loss
-                is_stop_loss_attempt = True
+        # Log current position state if this is a CLOSE order
+        if reduce_only:
+            if trading_pair in self._perpetual_trading.account_positions:
+                pos = self._perpetual_trading.account_positions[trading_pair]
                 self.logger().info(
-                    f"Detected stop loss sell order for long position: "
-                    f"price {price} < entry {position.entry_price}",
+                    f"Current position for {trading_pair}: side={pos.position_side}, "
+                    f"amount={pos.amount} (negative=SHORT), entry_price={pos.entry_price}",
                 )
+            else:
+                self.logger().info(f"No position found for {trading_pair} when placing CLOSE order")
 
-            elif position.position_side == PositionSide.SHORT:
-                # For SHORT positions, check both scenarios:
-                # 1. Correct: BUY above entry (strategy sends correct order)
-                # 2. Wrong: SELL above entry (strategy sends wrong trade type)
-                if price > position.entry_price:
-                    if trade_type == TradeType.BUY:
-                        # Correct trade type for short stop loss
-                        is_stop_loss_attempt = True
-                        self.logger().info(
-                            f"Detected stop loss buy order for short position: "
-                            f"price {price} > entry {position.entry_price}",
-                        )
-                    elif trade_type == TradeType.SELL:
-                        # Wrong trade type! Strategy sent SELL but should be BUY
-                        # Correct it to BUY for the trigger order
-                        is_stop_loss_attempt = True
-                        corrected_trade_type = TradeType.BUY
-                        self.logger().warning(
-                            f"Detected WRONG stop loss order for short position: "
-                            f"Strategy sent SELL but should be BUY. "
-                            f"Price {price} > entry {position.entry_price}. "
-                            f"Correcting to BUY trigger order.",
-                        )
+        # Note: Stop loss detection has been removed because:
+        # 1. The perpetual_market_making strategy has a bug in stop_loss_proposal
+        # 2. It only creates stop orders when market has already moved past the stop price
+        # 3. This is a strategy bug, not a connector issue
+        # 4. Trying to "fix" it in the connector causes more problems
+        #
+        # If stop losses are needed, the strategy itself needs to be fixed to:
+        # - Always place stop loss orders regardless of current market price
+        # - Use the correct order side (BUY for short stops, SELL for long stops)
+        # - Consider using trigger/stop orders instead of limit orders
 
-        # Convert stop loss orders to trigger orders for Backpack
-        if is_stop_loss_attempt:
-            # Backpack requires trigger orders to be Market orders with trigger fields
-            # Use corrected_trade_type which may have been fixed for short positions
-            order_data = {
-                "symbol": symbol,
-                "side": utils.backpack_order_side(corrected_trade_type),  # Use corrected trade type
-                "orderType": "Market",  # Must be Market for trigger orders
-                "triggerPrice": f"{price:.2f}",  # The stop trigger price
-                "triggerQuantity": str(amount),  # Amount to execute when triggered
-                "triggerBy": "MarkPrice",  # Use mark price for triggering
-                "clientId": numeric_client_id,
-                # Don't set reduceOnly for trigger orders - they handle position reduction automatically
-            }
-            self.logger().info(
-                f"Converting stop loss to trigger order: {order_data}",
-            )
-        else:
-            # Regular order flow
-            order_data = {
-                "symbol": symbol,
-                "side": utils.backpack_order_side(trade_type),
-                "quantity": str(amount),
-                "clientId": numeric_client_id,  # Backpack expects integer clientId
-            }
+        # Regular order flow
+        order_data = {
+            "symbol": symbol,
+            "side": utils.backpack_order_side(trade_type),
+            "quantity": str(amount),
+            "clientId": numeric_client_id,  # Backpack expects integer clientId
+        }
 
-            # Add reduce-only flag for closing positions
-            # But first verify this order would actually reduce the position
-            if reduce_only:
-                # Check if we have a position and if this order would reduce it
-                if trading_pair in self._perpetual_trading.account_positions:
-                    pos = self._perpetual_trading.account_positions[trading_pair]
-                    # LONG position is reduced by SELL, SHORT by BUY
-                    would_reduce = (
-                        (pos.position_side == PositionSide.LONG and trade_type == TradeType.SELL) or
-                        (pos.position_side == PositionSide.SHORT and trade_type == TradeType.BUY)
+        # Add reduce-only flag for closing positions
+        # But first verify this order would actually reduce the position
+        if reduce_only:
+            # Check if we have a position and if this order would reduce it
+            if trading_pair in self._perpetual_trading.account_positions:
+                pos = self._perpetual_trading.account_positions[trading_pair]
+                # LONG position is reduced by SELL, SHORT by BUY
+                would_reduce = (
+                    (pos.position_side == PositionSide.LONG and trade_type == TradeType.SELL) or
+                    (pos.position_side == PositionSide.SHORT and trade_type == TradeType.BUY)
+                )
+                if would_reduce:
+                    order_data["reduceOnly"] = True  # Use boolean, not string
+                    self.logger().info(
+                        f"Setting reduceOnly=True for {trade_type} order "
+                        f"to close {pos.position_side} position",
                     )
-                    if would_reduce:
-                        order_data["reduceOnly"] = True  # Use boolean, not string
-                        self.logger().debug(
-                            f"Setting reduceOnly=True for {trade_type} order "
-                            f"to close {pos.position_side} position",
-                        )
-                    else:
-                        self.logger().warning(
-                            f"NOT setting reduceOnly for {trade_type} order - "
-                            f"would not reduce {pos.position_side} position! "
-                            f"This might be a position tracking issue.",
-                        )
                 else:
-                    self.logger().warning(f"reduceOnly requested but no position found for {trading_pair}")
+                    self.logger().warning(
+                        f"Order validation: {trade_type} order would not reduce {pos.position_side} position. "
+                        f"Not setting reduceOnly flag. This may be intentional for complex strategies.",
+                    )
+            else:
+                self.logger().warning(f"reduceOnly requested but no position found for {trading_pair}")
 
-            # Handle LIMIT_MAKER by converting to LIMIT with postOnly flag
-            if order_type == OrderType.LIMIT_MAKER:
-                order_data["orderType"] = "Limit"
-                order_data["price"] = str(price)
-                order_data["postOnly"] = True
-            elif order_type == OrderType.LIMIT:
-                order_data["orderType"] = "Limit"
-                order_data["price"] = str(price)
-                # Add time in force if specified
-                time_in_force = kwargs.get("time_in_force")
-                if time_in_force:
-                    # Time in force must be in the map
-                    if time_in_force not in CONSTANTS.TIME_IN_FORCE_MAP:
-                        raise ValueError(f"Invalid time in force: {time_in_force}")
-                    order_data["timeInForce"] = CONSTANTS.TIME_IN_FORCE_MAP[time_in_force]
-            else:  # MARKET order
-                order_data["orderType"] = "Market"
+        # Handle LIMIT_MAKER by converting to LIMIT with postOnly flag
+        if order_type == OrderType.LIMIT_MAKER:
+            order_data["orderType"] = "Limit"
+            order_data["price"] = str(price)
+            order_data["postOnly"] = True
+        elif order_type == OrderType.LIMIT:
+            order_data["orderType"] = "Limit"
+            order_data["price"] = str(price)
+            # Add time in force if specified
+            time_in_force = kwargs.get("time_in_force")
+            if time_in_force:
+                # Time in force must be in the map
+                if time_in_force not in CONSTANTS.TIME_IN_FORCE_MAP:
+                    raise ValueError(f"Invalid time in force: {time_in_force}")
+                order_data["timeInForce"] = CONSTANTS.TIME_IN_FORCE_MAP[time_in_force]
+        else:  # MARKET order
+            order_data["orderType"] = "Market"
 
-            # Add stop loss parameters if provided (for attached stop losses)
-            stop_loss_price = kwargs.get("stop_loss_price")
-            if stop_loss_price:
-                order_data["stopLossTriggerPrice"] = str(stop_loss_price)
-                stop_loss_limit_price = kwargs.get("stop_loss_limit_price")
-                if stop_loss_limit_price:
-                    order_data["stopLossLimitPrice"] = str(stop_loss_limit_price)
-                # Default to MarkPrice for trigger by
-                order_data["stopLossTriggerBy"] = kwargs.get("stop_loss_trigger_by", "MarkPrice")
+        # Add stop loss parameters if provided (for attached stop losses)
+        stop_loss_price = kwargs.get("stop_loss_price")
+        if stop_loss_price:
+            order_data["stopLossTriggerPrice"] = str(stop_loss_price)
+            stop_loss_limit_price = kwargs.get("stop_loss_limit_price")
+            if stop_loss_limit_price:
+                order_data["stopLossLimitPrice"] = str(stop_loss_limit_price)
+            # Default to MarkPrice for trigger by
+            order_data["stopLossTriggerBy"] = kwargs.get("stop_loss_trigger_by", "MarkPrice")
 
-            # Add take profit parameters if provided
-            take_profit_price = kwargs.get("take_profit_price")
-            if take_profit_price:
-                order_data["takeProfitTriggerPrice"] = str(take_profit_price)
-                take_profit_limit_price = kwargs.get("take_profit_limit_price")
-                if take_profit_limit_price:
-                    order_data["takeProfitLimitPrice"] = str(take_profit_limit_price)
-                # Default to MarkPrice for trigger by
-                order_data["takeProfitTriggerBy"] = kwargs.get("take_profit_trigger_by", "MarkPrice")
+        # Add take profit parameters if provided
+        take_profit_price = kwargs.get("take_profit_price")
+        if take_profit_price:
+            order_data["takeProfitTriggerPrice"] = str(take_profit_price)
+            take_profit_limit_price = kwargs.get("take_profit_limit_price")
+            if take_profit_limit_price:
+                order_data["takeProfitLimitPrice"] = str(take_profit_limit_price)
+            # Default to MarkPrice for trigger by
+            order_data["takeProfitTriggerBy"] = kwargs.get("take_profit_trigger_by", "MarkPrice")
+
+        # Log the final order data being sent to exchange
+        self.logger().info(f"Sending order to Backpack: {order_data}")
 
         response = await self._api_post(
             path_url=CONSTANTS.ORDER_URL,
@@ -1624,6 +1595,11 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 )
                 self._order_tracker.process_order_update(order_update)
                 self.logger().info(f"Order {tracked_order.client_order_id} fully filled")
+
+                # Important: After a fill, trigger a position update to ensure
+                # positions are correctly tracked even if WebSocket is delayed
+                # This helps prevent the race condition where positions disappear
+                safe_ensure_future(self._update_positions())
 
         except Exception:
             self.logger().exception(f"Error processing trade fill: {fill_data}")
