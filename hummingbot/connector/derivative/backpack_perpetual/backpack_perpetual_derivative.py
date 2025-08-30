@@ -354,11 +354,14 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 pass
 
         # Fallback to string checking for non-JSON responses
-        error_str = str(cancelation_exception)
+        error_str = str(cancelation_exception).lower()
         return (
-            (str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE) in error_str and CONSTANTS.UNKNOWN_ORDER_MESSAGE in error_str)
-            or "Order not found" in error_str
-            or "INVALID_CLIENT_REQUEST" in error_str
+            (str(CONSTANTS.UNKNOWN_ORDER_ERROR_CODE).lower() in error_str)
+            or (CONSTANTS.UNKNOWN_ORDER_MESSAGE.lower() in error_str)
+            or (CONSTANTS.ORDER_NOT_FOUND_MESSAGE in error_str)
+            or (CONSTANTS.ORDER_DOES_NOT_EXIST_MESSAGE in error_str)
+            or (CONSTANTS.UNKNOWN_ORDER_ALT_MESSAGE in error_str)
+            or (CONSTANTS.INVALID_CLIENT_REQUEST_MESSAGE in error_str)
         )
 
     def _create_web_assistants_factory(self) -> WebAssistantsFactory:
@@ -379,7 +382,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     def _create_user_stream_data_source(self) -> UserStreamTrackerDataSource:
         return BackpackPerpetualUserStreamDataSource(
-            auth=cast(BackpackPerpetualAuth, self.authenticator),
+            auth=self.authenticator,
             connector=self,
             api_factory=self._web_assistants_factory,
             domain=self.domain,
@@ -746,8 +749,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._account_leverage_limit = Decimal(str(leverage_limit))
 
         # Also update leverage map for all trading pairs with the account-wide limit
-        for trading_pair in self._trading_pairs:
-            self._leverage_map[trading_pair] = int(self._account_leverage_limit)
+        if self._trading_pairs:
+            for trading_pair in self._trading_pairs:
+                self._leverage_map[trading_pair] = int(self._account_leverage_limit)
 
         # Now get margin fractions from collateral endpoint
         collateral_response = await self._api_get(
@@ -1366,7 +1370,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             trading_pair=trading_pair,
             index_price=Decimal(str(mark_data["indexPrice"])),
             mark_price=Decimal(str(mark_data["markPrice"])),
-            next_funding_utc_timestamp=int(mark_data["nextFundingTimestamp"]) / 1000,  # Convert ms to seconds
+            next_funding_utc_timestamp=int(int(mark_data["nextFundingTimestamp"]) / 1000),  # Convert ms to seconds
             rate=Decimal(str(mark_data["fundingRate"])),
         )
 

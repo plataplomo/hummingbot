@@ -233,7 +233,7 @@ async def api_request(
             )
 
             # For PATCH requests that return 200 with no content, return empty dict
-            if method == RESTMethod.PATCH and response == "":
+            if method == RESTMethod.PATCH and not response:
                 return {}
 
             # Response could be str or dict from execute_request

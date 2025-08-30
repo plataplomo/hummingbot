@@ -247,6 +247,12 @@ ORDER_NOT_EXIST_MESSAGE = "Order does not exist"
 UNKNOWN_ORDER_ERROR_CODE = "INVALID_ORDER"  # When order is invalid
 UNKNOWN_ORDER_MESSAGE = "Invalid order"
 
+# Additional error messages for order cancellation
+ORDER_NOT_FOUND_MESSAGE = "order not found"
+ORDER_DOES_NOT_EXIST_MESSAGE = "does not exist"
+UNKNOWN_ORDER_ALT_MESSAGE = "unknown order"
+INVALID_CLIENT_REQUEST_MESSAGE = "invalid_client_request"
+
 # Trading rules update interval
 TRADING_RULES_UPDATE_INTERVAL = 3600  # Update every hour
 
