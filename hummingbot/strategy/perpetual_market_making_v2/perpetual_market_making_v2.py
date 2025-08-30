@@ -606,7 +606,7 @@ class PerpetualMarketMakingStrategyV2(StrategyPyBase):
                 for order in existent_stop_loss_orders:
                     previous_stop_loss_price = order.price
                     self.cancel_order(self._market_info, order.client_order_id)
-                    self.logger().info(f"Canceling the limit order {order.client_order_id} to renew stop loss.")
+                    self.logger().debug(f"Canceling the limit order {order.client_order_id} to renew stop loss.")
                 new_price = previous_stop_loss_price or stop_loss_price
                 if (top_ask <= stop_loss_price and position.amount > 0):
                     price = market.quantize_order_price(
@@ -623,7 +623,7 @@ class PerpetualMarketMakingStrategyV2(StrategyPyBase):
                         )
                     size = market.quantize_order_amount(self.trading_pair, abs(position.amount))
                     if size > 0 and price > 0:
-                        self.logger().info("Creating stop loss sell order to close long position.")
+                        self.logger().debug("Creating stop loss sell order to close long position.")
                         sells.append(PriceSize(price, size))
                 elif (top_bid >= stop_loss_price and position.amount < 0):
                     price = market.quantize_order_price(
@@ -640,7 +640,7 @@ class PerpetualMarketMakingStrategyV2(StrategyPyBase):
                         )
                     size = market.quantize_order_amount(self.trading_pair, abs(position.amount))
                     if size > 0 and price > 0:
-                        self.logger().info("Creating stop loss buy order to close short position.")
+                        self.logger().debug("Creating stop loss buy order to close short position.")
                         buys.append(PriceSize(price, size))
         return Proposal(buys, sells)
 

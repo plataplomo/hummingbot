@@ -904,7 +904,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Only remove position if explicitly closed (amount = 0)
             if abs(net_quantity) == Decimal(0):
                 if trading_pair in self._perpetual_trading.account_positions:
-                    self.logger().info(f"Position closed for {trading_pair}, removing from tracking")
+                    self.logger().debug(f"Position closed for {trading_pair}, removing from tracking")
                     del self._perpetual_trading.account_positions[trading_pair]
                 return
 
@@ -1033,12 +1033,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         if reduce_only:
             if trading_pair in self._perpetual_trading.account_positions:
                 pos = self._perpetual_trading.account_positions[trading_pair]
-                self.logger().info(
+                self.logger().debug(
                     f"Current position for {trading_pair}: side={pos.position_side}, "
                     f"amount={pos.amount} (negative=SHORT), entry_price={pos.entry_price}",
                 )
             else:
-                self.logger().info(f"No position found for {trading_pair} when placing CLOSE order")
+                self.logger().debug(f"No position found for {trading_pair} when placing CLOSE order")
 
         # Note: Stop loss detection has been removed because:
         # 1. The perpetual_market_making strategy has a bug in stop_loss_proposal
@@ -1598,7 +1598,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     new_state=OrderState.FILLED,
                 )
                 self._order_tracker.process_order_update(order_update)
-                self.logger().info(f"Order {tracked_order.client_order_id} fully filled")
+                self.logger().debug(f"Order {tracked_order.client_order_id} fully filled")
 
                 # Important: After a fill, trigger a position update to ensure
                 # positions are correctly tracked even if WebSocket is delayed

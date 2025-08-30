@@ -128,7 +128,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         # For Backpack, authentication happens with the subscription message
         # We don't send a separate auth message
         # Authentication params are included with each private channel subscription
-        self.logger().info("WebSocket connected, authentication will happen with subscription")
+        self.logger().debug("WebSocket connected, authentication will happen with subscription")
         return True
 
     async def _subscribe_to_private_channels(self, ws: WSAssistant):
@@ -168,7 +168,7 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
 
         subscribe_request = WSJSONRequest(payload=subscribe_msg)
         await ws.send(subscribe_request)
-        self.logger().info(f"Subscribed to private channels: {channels}")
+        self.logger().debug(f"Subscribed to private channels: {channels}")
 
     def _process_event(self, event: dict[str, Any]) -> dict[str, Any] | None:
         """Process WebSocket events and route them appropriately.
