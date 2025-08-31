@@ -4,7 +4,7 @@ Properly implements V2 architecture with atomic position management
 """
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, ClassVar, Optional
+from typing import Any, ClassVar
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -21,8 +21,8 @@ from hummingbot.strategy_v2.models.executor_actions import CreateExecutorAction,
 class FundingRateArbitrageConfig(StrategyV2ConfigBase):
     """Configuration for the funding rate arbitrage strategy"""
     script_file_name: str = Path(__file__).name
-    candles_config: list[CandlesConfig] = []
-    controllers_config: list[str] = []
+    candles_config: list[CandlesConfig] = []  # noqa: RUF012
+    controllers_config: list[str] = []  # noqa: RUF012
 
     # Market configuration
     connectors: set[str] = Field(
@@ -226,7 +226,7 @@ class FundingRateArbitrage(StrategyV2Base):
                 trading_pairs = self.market_data_provider.get_trading_pairs(connector_name)
                 self.logger().info(
                     f"  Setting leverage for {connector_name}: "
-                    f"{self.config.leverage}x on {len(trading_pairs)} pairs"
+                    f"{self.config.leverage}x on {len(trading_pairs)} pairs",
                 )
 
                 for trading_pair in trading_pairs:
@@ -246,10 +246,12 @@ class FundingRateArbitrage(StrategyV2Base):
         active_tokens = set()
         for executor_info in active_executors:
             # Check if this is a funding arbitrage executor
-            if executor_info.type == "funding_arbitrage_executor" and executor_info.is_active:
-                # Access token from config
-                if hasattr(executor_info.config, "token"):
-                    active_tokens.add(executor_info.config.token)
+            if (
+                executor_info.type == "funding_arbitrage_executor"
+                and executor_info.is_active
+                and hasattr(executor_info.config, "token")
+            ):
+                active_tokens.add(executor_info.config.token)
 
         # Check each token for opportunities
         for token in self.config.tokens:
@@ -277,19 +279,19 @@ class FundingRateArbitrage(StrategyV2Base):
                 price_diff_pct = (short_price - long_price) / long_price
                 if price_diff_pct < -Decimal("0.002"):  # More than 0.2% price divergence
                     self.logger().debug(
-                        f"Skipping {token}: excessive price divergence {price_diff_pct:.4%}"
+                        f"Skipping {token}: excessive price divergence {price_diff_pct:.4%}",
                     )
                     continue
 
             # Log opportunity
             self.logger().info(
                 f"💰 ARBITRAGE: {token} | {connector_long} vs {connector_short} | "
-                f"Funding: {funding_diff:.3%}"
+                f"Funding: {funding_diff:.3%}",
             )
 
             # Create executor configuration
             executor_config = self.create_funding_arbitrage_executor_config(
-                token, connector_long, tp_long, connector_short, tp_short, funding_diff
+                token, connector_long, tp_long, connector_short, tp_short, funding_diff,
             )
 
             # Create action to start the executor
@@ -346,7 +348,7 @@ class FundingRateArbitrage(StrategyV2Base):
             # Create stop action if needed
             if should_stop and hasattr(config, "token"):
                 self.logger().info(
-                    f"🛑 Closing {config.token}: {stop_reason}"
+                    f"🛑 Closing {config.token}: {stop_reason}",
                 )
                 stop_actions.append(StopExecutorAction(executor_id=executor_info.id))
 
@@ -395,8 +397,8 @@ class FundingRateArbitrage(StrategyV2Base):
         )
 
     def get_best_funding_arbitrage_opportunity(
-        self, token: str
-    ) -> Optional[tuple[str, str, str, str, Decimal]]:
+        self, token: str,
+    ) -> tuple[str, str, str, str, Decimal] | None:
         """Find the best funding arbitrage opportunity for a token"""
         best_opportunity = None
         highest_profitability = Decimal(0)
@@ -466,7 +468,7 @@ class FundingRateArbitrage(StrategyV2Base):
         # Note: In V2 architecture, executors are managed by the framework
         # We can track funding payments here for strategy-level metrics
         self.logger().info(
-            f"💰 Funding payment: {event.market} {event.trading_pair} - Amount: {event.amount:.6f}"
+            f"💰 Funding payment: {event.market} {event.trading_pair} - Amount: {event.amount:.6f}",
         )
 
     @staticmethod
@@ -493,7 +495,7 @@ class FundingRateArbitrage(StrategyV2Base):
                     lines.append(
                         f"  {config.token}: "
                         f"{config.long_connector_name} vs "
-                        f"{config.short_connector_name}"
+                        f"{config.short_connector_name}",
                     )
 
         return lines
@@ -522,7 +524,7 @@ class FundingRateArbitrage(StrategyV2Base):
                             f"{config.long_connector_name if hasattr(config, 'long_connector_name') else 'N/A'} vs "
                             f"{config.short_connector_name if hasattr(config, 'short_connector_name') else 'N/A'} | "
                             f"PnL: {executor_info.net_pnl_quote:.2f} | "
-                            f"Trading: {'✅' if executor_info.is_trading else '⚠️'}"
+                            f"Trading: {'✅' if executor_info.is_trading else '⚠️'}",
                         )
         else:
             lines.append("No active arbitrages")
