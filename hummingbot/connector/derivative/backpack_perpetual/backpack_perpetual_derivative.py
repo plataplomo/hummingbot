@@ -8,6 +8,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, cast
 
+from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.connector.constants import s_decimal_NaN
 from hummingbot.connector.derivative.backpack_perpetual import (
     backpack_perpetual_constants as CONSTANTS,
@@ -28,7 +29,7 @@ from hummingbot.core.api_throttler.data_types import RateLimit
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.funding_info import FundingInfo
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
-from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase
+from hummingbot.core.data_type.trade_fee import TokenAmount, TradeFeeBase, TradeFeeSchema
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.event.events import (
     AccountEvent,
@@ -85,6 +86,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self._domain = domain
+        self._dynamic_trading_fees: dict[str, Decimal] = {}  # Store dynamic fees from API
         self._position_mode: PositionMode = CONSTANTS.DEFAULT_POSITION_MODE  # Initialize with default position mode
         self._last_trade_history_timestamp = None
         self._leverage_map: dict[str, int] = {}  # Store leverage per trading pair
@@ -100,6 +102,15 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     @property
     def name(self) -> str:
         return CONSTANTS.EXCHANGE_NAME
+
+    def _create_order_tracker(self) -> ClientOrderTracker:
+        """Create order tracker with lower lost order count limit for faster detection.
+
+        This helps handle concurrent instances using the same API keys more gracefully.
+        When another instance cancels orders, this instance will detect it faster.
+        """
+        # Use limit of 1 so orders are marked as failed after 2 attempts
+        return ClientOrderTracker(connector=self, lost_order_count_limit=1)
 
     @property
     def authenticator(self) -> BackpackPerpetualAuth:
@@ -557,17 +568,37 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     ) -> TradeFeeBase:
         is_maker = is_maker or (order_type == OrderType.LIMIT_MAKER)
 
-        fee = build_perpetual_trade_fee(
-            self.name,
-            is_maker,
-            position_action=position_action,
-            base_currency=base_currency,
-            quote_currency=quote_currency,
-            order_type=order_type,
-            order_side=order_side,
-            amount=amount,
-            price=price,
-        )
+        # Use dynamic fees if available from API
+        if self._dynamic_trading_fees:
+            percent_fee = self._dynamic_trading_fees["maker"] if is_maker else self._dynamic_trading_fees["taker"]
+
+            # Create fee with dynamic rates from API
+            fee = TradeFeeBase.new_perpetual_fee(
+                fee_schema=TradeFeeSchema(
+                    maker_percent_fee_decimal=self._dynamic_trading_fees["maker"],
+                    taker_percent_fee_decimal=self._dynamic_trading_fees["taker"],
+                ),
+                position_action=position_action,
+                percent=percent_fee,
+                percent_token=quote_currency,  # Fees are in quote currency (USDC)
+            )
+
+            self.logger().debug(
+                f"Using dynamic fee rate: {percent_fee:.4%} (is_maker={is_maker})",
+            )
+        else:
+            # Fall back to default fee calculation using configured schema
+            fee = build_perpetual_trade_fee(
+                self.name,
+                is_maker,
+                position_action=position_action,
+                base_currency=base_currency,
+                quote_currency=quote_currency,
+                order_type=order_type,
+                order_side=order_side,
+                amount=amount,
+                price=price,
+            )
         return fee
 
     # API request methods
@@ -1490,16 +1521,88 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Handle both order updates and trade fills
             data = order_msg.get("data", order_msg)
 
-            # Check if this is a trade/fill event
-            # Only process if it's actually an orderFill event (has trade data)
-            if data.get("e") == "orderFill":
+            # Check event type from WebSocket
+            event_type = data.get("e")
+
+            if event_type == "orderFill":
+                # Process trade fill
                 self._process_trade_fill(data)
+            elif event_type == "orderCancelled":
+                # Handle order cancelled event - immediately mark as cancelled
+                self._process_order_cancelled_event(data)
+            elif event_type in ["orderAccepted", "orderExpired", "orderModified"]:
+                # Process other order status updates
+                self._process_order_status_update(data)
             else:
-                # Regular order status update
+                # Regular order status update (REST format or unknown event)
                 self._process_order_status_update(data)
 
         except Exception:
             self.logger().exception(f"Error processing order message: {order_msg}")
+
+    def _process_order_cancelled_event(self, cancel_data: dict[str, Any]):
+        """Process order cancelled event from WebSocket.
+
+        This handles orders cancelled externally (by another instance or the exchange).
+        We immediately mark them as cancelled to avoid retry loops.
+        """
+        try:
+            # Get order ID from WebSocket data
+            exchange_order_id = cancel_data.get("i")  # WebSocket uses "i" for order ID
+            client_order_id = cancel_data.get("c")  # WebSocket uses "c" for client order ID
+
+            # Find the tracked order
+            tracked_order = None
+
+            # First try by exchange order ID
+            if exchange_order_id:
+                for order in self._order_tracker.active_orders.values():
+                    if str(order.exchange_order_id) == str(exchange_order_id):
+                        tracked_order = order
+                        break
+
+            # If not found, try by client order ID
+            if not tracked_order and client_order_id:
+                # Convert numeric client ID back to string format if needed
+                for order in self._order_tracker.active_orders.values():
+                    numeric_id = self._id_mapper.get_numeric_id(order.client_order_id)
+                    if str(numeric_id) == str(client_order_id) or order.client_order_id == str(client_order_id):
+                        tracked_order = order
+                        break
+
+            if tracked_order:
+                # Create order update marking it as cancelled
+                order_update = OrderUpdate(
+                    trading_pair=tracked_order.trading_pair,
+                    update_timestamp=self.current_timestamp,
+                    new_state=OrderState.CANCELED,
+                    client_order_id=tracked_order.client_order_id,
+                    exchange_order_id=tracked_order.exchange_order_id,
+                )
+
+                # Process the update immediately
+                self._order_tracker.process_order_update(order_update)
+
+                # Check origin field to understand why it was cancelled
+                origin = cancel_data.get("O")
+                if origin and origin != "USER":
+                    self.logger().info(
+                        f"Order {tracked_order.client_order_id} cancelled by {origin}",
+                    )
+                else:
+                    # Likely cancelled by another instance or manually
+                    self.logger().info(
+                        f"Order {tracked_order.client_order_id} cancelled externally",
+                    )
+            else:
+                # Order not tracked by this instance - ignore
+                self.logger().debug(
+                    f"Received cancellation for untracked order: "
+                    f"exchange_id={exchange_order_id}, client_id={client_order_id}",
+                )
+
+        except Exception:
+            self.logger().exception(f"Error processing order cancelled event: {cancel_data}")
 
     def _process_trade_fill(self, fill_data: dict[str, Any]):
         """Process trade fill event."""
@@ -1786,7 +1889,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             except Exception as e:
                 self.logger().warning(f"Failed to sync time: {e}")
 
-        # Try to fetch fees from account endpoint if available
+        # Try to fetch fees from account endpoint
         try:
             account_info = await self._api_get(
                 path_url=CONSTANTS.ACCOUNT_URL,
@@ -1794,21 +1897,38 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 limit_id=CONSTANTS.BALANCE_URL,  # Use balance rate limit
             )
 
-            # Check if fee information is available in account response
-            if "makerFeeRate" in account_info or "takerFeeRate" in account_info:
-                # Update fee configuration if data is available
-                # This would need to be integrated with TradeFeeSchemaLoader
+            # Extract and store fee rates if available
+            # Backpack returns fees in basis points (e.g., 1.8 for 0.018% or 0.00018)
+            # We need to convert to decimal (divide by 10000)
+            if "futuresMakerFee" in account_info and "futuresTakerFee" in account_info:
+                # Convert basis points to decimal (divide by 10000)
+                maker_fee = Decimal(str(account_info["futuresMakerFee"])) / Decimal(10000)
+                taker_fee = Decimal(str(account_info["futuresTakerFee"])) / Decimal(10000)
+
+                # Store in dynamic fees dictionary
+                self._dynamic_trading_fees = {
+                    "maker": maker_fee,
+                    "taker": taker_fee,
+                }
+
                 self.logger().info(
-                    f"Account fee rates - Maker: {account_info.get('makerFeeRate')}, "
-                    f"Taker: {account_info.get('takerFeeRate')}",
+                    f"Updated dynamic fee rates from API - Maker: {maker_fee:.4%}, Taker: {taker_fee:.4%}",
+                )
+
+                # Log the actual percentage values received
+                self.logger().debug(
+                    f"Raw fee rates from API - Maker: {account_info['futuresMakerFee']} bps, "
+                    f"Taker: {account_info['futuresTakerFee']} bps",
                 )
             else:
-                # If not available, the TradeFeeSchemaLoader will use configured defaults
+                # Clear dynamic fees to fall back to defaults
+                self._dynamic_trading_fees = {}
                 self.logger().debug("No fee rates in account info, using configured defaults")
 
-        except Exception:
-            # If the endpoint doesn't exist or fails, fees will come from configuration
-            self.logger().debug("Could not fetch account fee rates, using configured defaults")
+        except Exception as e:
+            # If the endpoint doesn't exist or fails, clear dynamic fees
+            self._dynamic_trading_fees = {}
+            self.logger().debug(f"Could not fetch account fee rates: {e}, using configured defaults")
 
     async def _make_trading_pairs_request(self) -> Any:
         """Request trading pairs information from the exchange.

@@ -16,6 +16,9 @@ if TYPE_CHECKING:
 from hummingbot.strategy_v2.executors.arbitrage_executor.arbitrage_executor import ArbitrageExecutor
 from hummingbot.strategy_v2.executors.data_types import PositionSummary
 from hummingbot.strategy_v2.executors.dca_executor.dca_executor import DCAExecutor
+from hummingbot.strategy_v2.executors.funding_arbitrage_executor.funding_arbitrage_executor import (
+    FundingArbitrageExecutor,
+)
 from hummingbot.strategy_v2.executors.grid_executor.grid_executor import GridExecutor
 from hummingbot.strategy_v2.executors.order_executor.order_executor import OrderExecutor
 from hummingbot.strategy_v2.executors.position_executor.position_executor import PositionExecutor
@@ -142,6 +145,7 @@ class ExecutorOrchestrator:
         "grid_executor": GridExecutor,
         "dca_executor": DCAExecutor,
         "arbitrage_executor": ArbitrageExecutor,
+        "funding_arbitrage_executor": FundingArbitrageExecutor,
         "twap_executor": TWAPExecutor,
         "xemm_executor": XEMMExecutor,
         "order_executor": OrderExecutor,
