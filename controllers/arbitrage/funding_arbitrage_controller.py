@@ -698,6 +698,11 @@ class FundingArbitrageController(ControllerBase):
                 take_profit=self.config.profitability_to_take_profit,
                 stop_loss=abs(self.config.funding_rate_diff_stop_loss),
                 time_limit=self.config.position_time_limit_hours * 3600,  # Convert hours to seconds
+                # Set order types from controller config
+                open_order_type=self.config.open_order_type,
+                take_profit_order_type=self.config.close_order_type,
+                stop_loss_order_type=self.config.close_order_type,
+                time_limit_order_type=self.config.close_order_type,
             )
 
             # Get exchange-specific quote currencies

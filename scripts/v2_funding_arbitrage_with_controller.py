@@ -12,7 +12,8 @@ Features:
 """
 from decimal import Decimal
 from pathlib import Path
-from typing import Dict, List, Optional
+
+from pydantic import Field
 
 from hummingbot.client.hummingbot_application import HummingbotApplication
 from hummingbot.connector.connector_base import ConnectorBase
@@ -28,15 +29,15 @@ class FundingArbitrageWithControllerConfig(StrategyV2ConfigBase):
     script_file_name: str = Path(__file__).name
 
     # Controller configuration files
-    controllers_config: List[str] = ["funding_arbitrage_controller_config.yml"]
+    controllers_config: list[str] = Field(default_factory=lambda: ["funding_arbitrage_controller_config.yml"])
 
     # Markets will be populated by controller
-    markets: MarketDict = {}
-    candles_config: List[CandlesConfig] = []
+    markets: MarketDict = Field(default_factory=MarketDict)
+    candles_config: list[CandlesConfig] = Field(default_factory=list)
 
     # Global risk management
-    max_global_drawdown_quote: Optional[float] = 100.0  # Maximum portfolio drawdown
-    max_controller_drawdown_quote: Optional[float] = 50.0  # Maximum per-controller drawdown
+    max_global_drawdown_quote: float | None = 100.0  # Maximum portfolio drawdown
+    max_controller_drawdown_quote: float | None = 50.0  # Maximum per-controller drawdown
 
     # Performance reporting
     performance_report_interval: int = 60  # Report performance every 60 seconds
@@ -52,7 +53,7 @@ class FundingArbitrageWithController(StrategyV2Base):
     Provides portfolio-level risk management, performance tracking, and emergency controls.
     """
 
-    def __init__(self, connectors: Dict[str, ConnectorBase], config: FundingArbitrageWithControllerConfig):
+    def __init__(self, connectors: dict[str, ConnectorBase], config: FundingArbitrageWithControllerConfig) -> None:
         self.logger().info("🚀 Initializing FundingArbitrageWithController")
         self.logger().info(f"📊 Available connectors: {list(connectors.keys()) if connectors else 'None'}")
         self.logger().info(f"📁 Controller configs to load: {config.controllers_config}")
@@ -78,34 +79,38 @@ class FundingArbitrageWithController(StrategyV2Base):
 
         # Call parent constructor which should initialize controllers
         super().__init__(connectors, config)
-        self.config = config
+        self.config: FundingArbitrageWithControllerConfig = config
 
         # Validate we have exactly one funding arbitrage controller
         if len(self.controllers) != 1:
             raise ValueError(f"This script expects exactly 1 funding arbitrage controller, got {len(self.controllers)}")
 
         # Get the single controller
-        self.controller_id = list(self.controllers.keys())[0]
-        self.controller = list(self.controllers.values())[0]
+        self.controller_id = next(iter(self.controllers.keys()))
+        self.controller = next(iter(self.controllers.values()))
 
         # Validate it's a funding arbitrage controller
         if self.controller.config.controller_name != "funding_arbitrage_controller":
-            raise ValueError(f"This script only works with funding_arbitrage_controller, got {self.controller.config.controller_name}")
+            raise ValueError(
+                f"This script only works with funding_arbitrage_controller, "
+                f"got {self.controller.config.controller_name}",
+            )
 
         # Performance tracking for the single controller
-        self.max_controller_pnl = Decimal("0")
+        self.max_controller_pnl = Decimal(0)
         self._last_performance_report_timestamp = 0
         self._is_drawdown_exited = False
+        self._last_controller_log_time: float = 0
 
         # Unhedged exposure tracking
-        self._unhedged_exposure_start = {}
-        self._unhedged_warnings_sent = set()
+        self._unhedged_exposure_start: dict[str, float] = {}
+        self._unhedged_warnings_sent: set[str] = set()
 
         self.logger().info(f"📈 Funding Arbitrage Controller initialized: {self.controller_id}")
         self.logger().info(f"  - Tokens: {self.controller.config.tokens}")
         self.logger().info(f"  - Exchanges: {self.controller.config.connectors}")
 
-    def on_tick(self):
+    def on_tick(self) -> None:
         """
         Main strategy tick with enhanced monitoring and risk management.
         """
@@ -113,26 +118,19 @@ class FundingArbitrageWithController(StrategyV2Base):
         super().on_tick()
 
         # Log controller status periodically (every 30 seconds)
-        if hasattr(self, '_last_controller_log_time'):
-            if self.current_timestamp - self._last_controller_log_time > 30:
-                self.logger().info(f"📈 Status: {self.controller.status.name}")
+        if self.current_timestamp - self._last_controller_log_time > 30:
+            self.logger().info(f"📈 Status: {self.controller.status.name}")
 
-                # Try to start controller if not running
-                if self.controller.status != RunnableStatus.RUNNING:
-                    self.logger().warning("⚠️ Controller not running, attempting to start...")
-                    try:
-                        self.controller.start()
-                        self.logger().info("✅ Started controller")
-                    except Exception as e:
-                        self.logger().error(f"❌ Failed to start controller: {e}")
-
-                self._last_controller_log_time = self.current_timestamp
-        else:
-            self._last_controller_log_time = self.current_timestamp
-            # Start controller if not running
+            # Try to start controller if not running
             if self.controller.status != RunnableStatus.RUNNING:
-                self.logger().info(f"Starting controller {self.controller_id}...")
-                self.controller.start()
+                self.logger().warning("⚠️ Controller not running, attempting to start...")
+                try:
+                    self.controller.start()
+                    self.logger().info("✅ Started controller")
+                except Exception as e:
+                    self.logger().error(f"❌ Failed to start controller: {e}")
+
+            self._last_controller_log_time = self.current_timestamp
 
         # Additional safety and monitoring
         if not self._is_stop_triggered and not self._is_drawdown_exited:
@@ -141,7 +139,7 @@ class FundingArbitrageWithController(StrategyV2Base):
             self.send_performance_report()
             self.check_manual_kill_switch()
 
-    def check_unhedged_exposure(self):
+    def check_unhedged_exposure(self) -> None:
         """Monitor and handle unhedged exposure across all executors"""
         if not self.config.emergency_stop_on_unhedged:
             return
@@ -149,7 +147,7 @@ class FundingArbitrageWithController(StrategyV2Base):
         executors = self.get_executors_by_controller(self.controller_id)
 
         for executor in executors:
-            if not hasattr(executor, '_has_unhedged_exposure'):
+            if not hasattr(executor, "_has_unhedged_exposure"):
                 continue
 
             executor_id = executor.id
@@ -161,7 +159,7 @@ class FundingArbitrageWithController(StrategyV2Base):
                     self._unhedged_exposure_start[executor_id] = self.current_timestamp
                     self.logger().warning(
                         f"⚠️ Unhedged exposure detected for executor {executor_id} "
-                        f"(Token: {executor.config.token})"
+                        f"(Token: {executor.config.token})",
                     )
 
                 # Check exposure duration
@@ -170,7 +168,7 @@ class FundingArbitrageWithController(StrategyV2Base):
                 if exposure_duration > self.config.max_unhedged_exposure_time:
                     self.logger().error(
                         f"🚨 EMERGENCY: Unhedged exposure exceeded {self.config.max_unhedged_exposure_time}s "
-                        f"for executor {executor_id}. Triggering emergency stop!"
+                        f"for executor {executor_id}. Triggering emergency stop!",
                     )
                     self._is_stop_triggered = True
                     HummingbotApplication.main_application().stop()
@@ -181,11 +179,11 @@ class FundingArbitrageWithController(StrategyV2Base):
                 duration = self.current_timestamp - self._unhedged_exposure_start[executor_id]
                 self.logger().info(
                     f"✅ Unhedged exposure resolved for executor {executor_id} "
-                    f"after {duration:.1f} seconds"
+                    f"after {duration:.1f} seconds",
                 )
                 del self._unhedged_exposure_start[executor_id]
 
-    def check_controller_drawdown(self):
+    def check_controller_drawdown(self) -> None:
         """Check controller drawdown limit"""
         if not self.config.max_controller_drawdown_quote or self._is_drawdown_exited:
             return
@@ -209,7 +207,7 @@ class FundingArbitrageWithController(StrategyV2Base):
             if current_drawdown > self.config.max_controller_drawdown_quote:
                 self.logger().warning(
                     f"Controller reached max drawdown of ${current_drawdown:.2f}. "
-                    f"Stopping controller and closing positions."
+                    f"Stopping controller and closing positions.",
                 )
                 self.controller.stop()
 
@@ -218,12 +216,12 @@ class FundingArbitrageWithController(StrategyV2Base):
                 self.executor_orchestrator.execute_actions([
                     StopExecutorAction(
                         controller_id=self.controller_id,
-                        executor_id=executor.id
+                        executor_id=executor.id,
                     ) for executor in executors_to_stop
                 ])
                 self._is_drawdown_exited = True
 
-    def send_performance_report(self):
+    def send_performance_report(self) -> None:
         """Send periodic performance reports"""
         if self.current_timestamp - self._last_performance_report_timestamp >= self.config.performance_report_interval:
             self.logger().info("=== FUNDING ARBITRAGE PERFORMANCE REPORT ===")
@@ -240,7 +238,7 @@ class FundingArbitrageWithController(StrategyV2Base):
             active_positions = sum(1 for e in executors if e.is_trading)
 
             self.logger().info(
-                f"PnL: ${controller_pnl:.2f}, Active Positions: {active_positions}"
+                f"PnL: ${controller_pnl:.2f}, Active Positions: {active_positions}",
             )
 
             # Log individual executor status
@@ -250,7 +248,7 @@ class FundingArbitrageWithController(StrategyV2Base):
 
             self._last_performance_report_timestamp = self.current_timestamp
 
-    def check_manual_kill_switch(self):
+    def check_manual_kill_switch(self) -> None:
         """Check for manual kill switch activation"""
         if self.controller.config.manual_kill_switch and self.controller.status == RunnableStatus.RUNNING:
             self.logger().info("Manual kill switch activated")
@@ -261,7 +259,7 @@ class FundingArbitrageWithController(StrategyV2Base):
             self.executor_orchestrator.execute_actions([
                 StopExecutorAction(
                     executor_id=executor.id,
-                    controller_id=self.controller_id
+                    controller_id=self.controller_id,
                 ) for executor in executors_to_stop
             ])
 
@@ -302,7 +300,7 @@ class FundingArbitrageWithController(StrategyV2Base):
 
         return "\n".join(lines)
 
-    def apply_initial_setting(self):
+    def apply_initial_setting(self) -> None:
         """Apply initial settings for funding arbitrage trading"""
         super().apply_initial_setting()
 
@@ -314,11 +312,11 @@ class FundingArbitrageWithController(StrategyV2Base):
         self.logger().info("🔧 Configuring exchanges for funding arbitrage")
 
         config_dict = self.controller.config.model_dump()
-        leverage = config_dict.get('leverage', 3)
+        leverage = config_dict.get("leverage", 3)
 
         # Get connectors from the funding arbitrage config
-        if 'connectors' in config_dict:
-            for connector_name in config_dict['connectors']:
+        if "connectors" in config_dict:
+            for connector_name in config_dict["connectors"]:
                 if self.is_perpetual(connector_name) and connector_name in self.connectors:
                     connector = self.connectors[connector_name]
 
@@ -327,29 +325,37 @@ class FundingArbitrageWithController(StrategyV2Base):
 
                     if PositionMode.HEDGE in supported_modes:
                         try:
-                            self.logger().info(f"Setting {connector_name} to HEDGE mode (supports simultaneous long/short)...")
+                            self.logger().info(
+                                f"Setting {connector_name} to HEDGE mode "
+                                f"(supports simultaneous long/short)...",
+                            )
                             connector.set_position_mode(PositionMode.HEDGE)
                             self.logger().info(f"✅ {connector_name} set to HEDGE mode")
                         except Exception as e:
                             self.logger().error(f"❌ Failed to set HEDGE mode for {connector_name}: {e}")
                     else:
-                        self.logger().info(f"ℹ️ {connector_name} doesn't support HEDGE mode (using ONEWAY mode)")
+                        self.logger().info(f"[INFO] {connector_name} doesn't support HEDGE mode (using ONEWAY mode)")
 
-                    # Set leverage
+                    # Set leverage for each trading pair on this connector
                     try:
-                        connector.set_leverage(leverage)
-                        self.logger().info(f"✅ Set {connector_name} leverage to {leverage}x")
+                        # Get all trading pairs for this connector from markets config
+                        if connector_name in self.config.markets:
+                            for trading_pair in self.config.markets[connector_name]:
+                                connector.set_leverage(trading_pair, leverage)
+                                self.logger().info(f"✅ Set {connector_name} {trading_pair} leverage to {leverage}x")
+                        else:
+                            self.logger().warning(f"No trading pairs configured for {connector_name}")
                     except Exception as e:
                         self.logger().error(f"Failed to set leverage for {connector_name}: {e}")
 
-    def create_actions_proposal(self) -> List[CreateExecutorAction]:
+    def create_actions_proposal(self) -> list[CreateExecutorAction]:
         """
         Controller-based strategies handle executor actions internally through controllers.
         Returns empty list as required by base class.
         """
         return []
 
-    def stop_actions_proposal(self) -> List[StopExecutorAction]:
+    def stop_actions_proposal(self) -> list[StopExecutorAction]:
         """
         Controller-based strategies handle stop actions internally through controllers.
         Returns empty list as required by base class.

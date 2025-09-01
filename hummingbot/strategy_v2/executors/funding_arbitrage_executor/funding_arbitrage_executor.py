@@ -160,7 +160,7 @@ class FundingArbitrageExecutor(ExecutorBase):
 
                 # Check exit conditions
                 if await self.should_exit_position():
-                    await self.close_all_positions()
+                    await self.close_all_positions(close_type=CloseType.TAKE_PROFIT)
                     self._status = RunnableStatus.SHUTTING_DOWN
 
             # Step 5: Handle entry timeout
@@ -172,7 +172,7 @@ class FundingArbitrageExecutor(ExecutorBase):
                 await self.cancel_unfilled_orders()
                 if self._long_filled or self._short_filled:
                     # We have partial fill, need to close
-                    await self.close_all_positions()
+                    await self.close_all_positions(close_type=CloseType.TIME_LIMIT)
                 self._status = RunnableStatus.SHUTTING_DOWN
 
         except Exception as e:
@@ -186,7 +186,8 @@ class FundingArbitrageExecutor(ExecutorBase):
         # Close positions if needed
         if self.close_type != CloseType.POSITION_HOLD:
             if self._long_filled or self._short_filled:
-                await self.close_all_positions(is_emergency=(self.close_type == CloseType.EARLY_STOP))
+                # Pass the close type to determine order type
+                await self.close_all_positions(close_type=self.close_type)
         else:
             # Position hold - just cancel unfilled orders
             await self.cancel_unfilled_orders()
@@ -194,6 +195,76 @@ class FundingArbitrageExecutor(ExecutorBase):
         # Mark as terminated when done
         if not self.is_active:
             self._status = RunnableStatus.TERMINATED
+
+    def calculate_maker_price(self, connector, trading_pair: str, is_buy: bool, is_entry: bool = False) -> Decimal:
+        """
+        Calculate optimal maker price based on order book spread and tick size.
+
+        Args:
+            connector: The exchange connector
+            trading_pair: The trading pair
+            is_buy: True for buy orders, False for sell orders
+            is_entry: True for entry orders (more aggressive), False for exit orders
+
+        Returns:
+            Optimal price for placing a maker order
+        """
+        try:
+            # Get the order book for accurate spread analysis
+            order_book = connector.get_order_book(trading_pair)
+            bid = Decimal(str(order_book.get_price(False)))  # Best bid
+            ask = Decimal(str(order_book.get_price(True)))   # Best ask
+            spread = ask - bid
+            spread_pct = spread / bid * Decimal(100)
+
+            # Get tick size for proper price rounding
+            reference_price = bid if is_buy else ask
+            tick_size = connector.get_order_price_quantum(trading_pair, reference_price)
+
+            # For entry orders, be more aggressive to ensure both sides fill
+            if is_entry:
+                # Use mid-price or slightly into the spread for entry orders
+                mid_price = (bid + ask) / Decimal(2)
+                if is_buy:
+                    # Buy slightly above mid (but still maker side)
+                    price = mid_price - spread * Decimal("0.2")  # 20% from mid toward bid
+                    price = max(price, bid)  # But at least at bid
+                else:
+                    # Sell slightly below mid (but still maker side)
+                    price = mid_price + spread * Decimal("0.2")  # 20% from mid toward ask
+                    price = min(price, ask)  # But at most at ask
+            else:
+                # For exit orders, prioritize being a maker for fee savings
+                if is_buy:
+                    # For buy orders, place on bid side
+                    if spread_pct < Decimal("0.1"):
+                        # Tight spread: join the existing bid
+                        price = bid
+                    else:
+                        # Wider spread: place 1 tick better than bid for priority
+                        price = bid + tick_size
+                        # But never cross to ask side
+                        price = min(price, ask - tick_size)
+                else:
+                    # For sell orders, place on ask side
+                    if spread_pct < Decimal("0.1"):
+                        # Tight spread: join the existing ask
+                        price = ask
+                    else:
+                        # Wider spread: place 1 tick better than ask for priority
+                        price = ask - tick_size
+                        # But never cross to bid side
+                        price = max(price, bid + tick_size)
+
+            return price
+
+        except Exception as e:
+            self.logger().warning(f"Failed to get order book for {trading_pair}, using fallback: {e}")
+            # Fallback to simple price quotes if order book not available
+            if is_buy:
+                return connector.get_price_by_type(trading_pair, PriceType.BestBid)
+            else:
+                return connector.get_price_by_type(trading_pair, PriceType.BestAsk)
 
     async def place_entry_orders(self):
         """Place both entry orders atomically"""
@@ -208,13 +279,29 @@ class FundingArbitrageExecutor(ExecutorBase):
             long_amount = self.config.position_size_quote / long_mid_price
             short_amount = self.config.position_size_quote / short_mid_price
 
-            # Get order prices (slightly better than mid for limit orders)
-            long_price = long_connector.get_price_for_volume(
-                self.config.long_trading_pair, True, long_amount,
-            ).result_price
-            short_price = short_connector.get_price_for_volume(
-                self.config.short_trading_pair, False, short_amount,
-            ).result_price
+            # Get order prices based on order type
+            if self.config.open_order_type == OrderType.LIMIT:
+                # Use smart maker pricing for LIMIT orders (more aggressive for entry)
+                long_price = self.calculate_maker_price(
+                    long_connector,
+                    self.config.long_trading_pair,
+                    is_buy=True,
+                    is_entry=True,
+                )
+                short_price = self.calculate_maker_price(
+                    short_connector,
+                    self.config.short_trading_pair,
+                    is_buy=False,
+                    is_entry=True,
+                )
+            else:
+                # For MARKET orders, use the fill price
+                long_price = long_connector.get_price_for_volume(
+                    self.config.long_trading_pair, True, long_amount,
+                ).result_price
+                short_price = short_connector.get_price_for_volume(
+                    self.config.short_trading_pair, False, short_amount,
+                ).result_price
 
             self.logger().info(
                 f"Placing entry orders for {self.config.token}: "
@@ -309,8 +396,8 @@ class FundingArbitrageExecutor(ExecutorBase):
                 self.logger().info(f"Reconciling: Cancelling and replacing SHORT order for {self.config.token}")
 
                 # Cancel existing short order
-                if self._short_order:
-                    await self._cancel_order(
+                if self._short_order and self._short_order.order_id:
+                    await self.cancel_order(
                         self.config.short_connector_name,
                         self.config.short_trading_pair,
                         self._short_order.order_id,
@@ -318,15 +405,20 @@ class FundingArbitrageExecutor(ExecutorBase):
 
                 # Place more aggressive limit order (improve price by 0.1%)
                 mid_price = self.connectors[self.config.short_connector_name].get_mid_price(self.config.short_trading_pair)
-                aggressive_price = mid_price * Decimal("1.001")  # 0.1% worse price for faster fill
+                aggressive_price = mid_price * Decimal("0.999")  # 0.1% better price for faster fill (lower for sell)
 
-                self._short_order = await self._place_order(
-                    self.config.short_connector_name,
-                    self.config.short_trading_pair,
-                    True,  # is_sell
-                    self._short_position_amount,
-                    OrderType.LIMIT,
-                    aggressive_price,
+                # Initialize TrackedOrder if needed
+                if not self._short_order:
+                    self._short_order = TrackedOrder()
+
+                self._short_order.order_id = self.place_order(
+                    connector_name=self.config.short_connector_name,
+                    trading_pair=self.config.short_trading_pair,
+                    order_type=OrderType.LIMIT,
+                    side=TradeType.SELL,
+                    amount=self._short_position_amount,
+                    price=aggressive_price,
+                    position_action=PositionAction.OPEN,
                 )
 
             elif self._short_filled and not self._long_filled:
@@ -334,8 +426,8 @@ class FundingArbitrageExecutor(ExecutorBase):
                 self.logger().info(f"Reconciling: Cancelling and replacing LONG order for {self.config.token}")
 
                 # Cancel existing long order
-                if self._long_order:
-                    await self._cancel_order(
+                if self._long_order and self._long_order.order_id:
+                    await self.cancel_order(
                         self.config.long_connector_name,
                         self.config.long_trading_pair,
                         self._long_order.order_id,
@@ -343,15 +435,20 @@ class FundingArbitrageExecutor(ExecutorBase):
 
                 # Place more aggressive limit order (improve price by 0.1%)
                 mid_price = self.connectors[self.config.long_connector_name].get_mid_price(self.config.long_trading_pair)
-                aggressive_price = mid_price * Decimal("0.999")  # 0.1% worse price for faster fill
+                aggressive_price = mid_price * Decimal("1.001")  # 0.1% better price for faster fill (higher for buy)
 
-                self._long_order = await self._place_order(
-                    self.config.long_connector_name,
-                    self.config.long_trading_pair,
-                    False,  # is_buy
-                    self._long_position_amount,
-                    OrderType.LIMIT,
-                    aggressive_price,
+                # Initialize TrackedOrder if needed
+                if not self._long_order:
+                    self._long_order = TrackedOrder()
+
+                self._long_order.order_id = self.place_order(
+                    connector_name=self.config.long_connector_name,
+                    trading_pair=self.config.long_trading_pair,
+                    order_type=OrderType.LIMIT,
+                    side=TradeType.BUY,
+                    amount=self._long_position_amount,
+                    price=aggressive_price,
+                    position_action=PositionAction.OPEN,
                 )
 
         except Exception as e:
@@ -365,20 +462,25 @@ class FundingArbitrageExecutor(ExecutorBase):
                 self.logger().info(f"MARKET ORDER: Forcing SHORT position for {self.config.token}")
 
                 # Cancel existing short order if any
-                if self._short_order:
-                    await self._cancel_order(
+                if self._short_order and self._short_order.order_id:
+                    await self.cancel_order(
                         self.config.short_connector_name,
                         self.config.short_trading_pair,
                         self._short_order.order_id,
                     )
 
+                # Initialize TrackedOrder if needed
+                if not self._short_order:
+                    self._short_order = TrackedOrder()
+
                 # Place market order
-                self._short_order = await self._place_order(
-                    self.config.short_connector_name,
-                    self.config.short_trading_pair,
-                    True,  # is_sell
-                    self._short_position_amount,
-                    OrderType.MARKET,
+                self._short_order.order_id = self.place_order(
+                    connector_name=self.config.short_connector_name,
+                    trading_pair=self.config.short_trading_pair,
+                    order_type=OrderType.MARKET,
+                    side=TradeType.SELL,
+                    amount=self._short_position_amount,
+                    position_action=PositionAction.OPEN,
                 )
 
             elif self._short_filled and not self._long_filled:
@@ -386,20 +488,25 @@ class FundingArbitrageExecutor(ExecutorBase):
                 self.logger().info(f"MARKET ORDER: Forcing LONG position for {self.config.token}")
 
                 # Cancel existing long order if any
-                if self._long_order:
-                    await self._cancel_order(
+                if self._long_order and self._long_order.order_id:
+                    await self.cancel_order(
                         self.config.long_connector_name,
                         self.config.long_trading_pair,
                         self._long_order.order_id,
                     )
 
+                # Initialize TrackedOrder if needed
+                if not self._long_order:
+                    self._long_order = TrackedOrder()
+
                 # Place market order
-                self._long_order = await self._place_order(
-                    self.config.long_connector_name,
-                    self.config.long_trading_pair,
-                    False,  # is_buy
-                    self._long_position_amount,
-                    OrderType.MARKET,
+                self._long_order.order_id = self.place_order(
+                    connector_name=self.config.long_connector_name,
+                    trading_pair=self.config.long_trading_pair,
+                    order_type=OrderType.MARKET,
+                    side=TradeType.BUY,
+                    amount=self._long_position_amount,
+                    position_action=PositionAction.OPEN,
                 )
 
         except Exception as e:
@@ -476,11 +583,25 @@ class FundingArbitrageExecutor(ExecutorBase):
 
         return False
 
-    async def close_all_positions(self, is_emergency: bool = False):
-        """Close both positions"""
+    async def close_all_positions(self, close_type: CloseType | None = None):
+        """Close both positions
+
+        Args:
+            close_type: The type of close operation (if None, uses default close_order_type from config)
+        """
         self.logger().info(f"Closing all positions for {self.config.token}")
 
-        use_market = is_emergency or self.config.triple_barrier_config.take_profit_order_type == OrderType.MARKET
+        # Determine if we should use market orders based on close type
+        # Only true emergencies (failed states, insufficient balance) should force market orders
+        emergency_close_types = [CloseType.FAILED, CloseType.INSUFFICIENT_BALANCE]
+
+        if close_type in emergency_close_types:
+            # Emergency scenarios always use market orders for quick exit
+            use_market = True
+        else:
+            # For all other stops including EARLY_STOP (user stop command), use take_profit_order_type
+            # (which should ideally be set from the controller's close_order_type)
+            use_market = self.config.triple_barrier_config.take_profit_order_type == OrderType.MARKET
 
         # Close in parallel for speed
         tasks = []
@@ -503,10 +624,11 @@ class FundingArbitrageExecutor(ExecutorBase):
             # Get the current price for LIMIT orders
             if not use_market:
                 connector = self.connectors[self.config.long_connector_name]
-                # For closing long (selling), use bid price
-                price = connector.get_price_by_type(
+                # For closing long, we're selling (is_buy=False)
+                price = self.calculate_maker_price(
+                    connector,
                     self.config.long_trading_pair,
-                    PriceType.BestBid,
+                    is_buy=False,
                 )
                 self.place_order(
                     connector_name=self.config.long_connector_name,
@@ -538,10 +660,11 @@ class FundingArbitrageExecutor(ExecutorBase):
             # Get the current price for LIMIT orders
             if not use_market:
                 connector = self.connectors[self.config.short_connector_name]
-                # For closing short (buying), use ask price
-                price = connector.get_price_by_type(
+                # For closing short, we're buying (is_buy=True)
+                price = self.calculate_maker_price(
+                    connector,
                     self.config.short_trading_pair,
-                    PriceType.BestAsk,
+                    is_buy=True,
                 )
                 self.place_order(
                     connector_name=self.config.short_connector_name,
