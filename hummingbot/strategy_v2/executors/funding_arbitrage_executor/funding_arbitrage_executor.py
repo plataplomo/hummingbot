@@ -3,8 +3,9 @@ Funding Arbitrage Executor - Custom executor for atomic management of paired pos
 This executor ensures hedging safety by managing both long and short positions as a single unit
 """
 import asyncio
+import logging
 from decimal import Decimal
-from typing import Any, Optional
+from typing import Any
 
 from hummingbot.client.settings import AllConnectorSettings
 from hummingbot.core.data_type.common import OrderType, PositionAction, PriceType, TradeType
@@ -20,8 +21,22 @@ class FundingArbitrageExecutor(ExecutorBase):
     Custom executor that atomically manages paired long/short positions for funding arbitrage.
     Ensures both positions are hedged and handles emergency situations.
     """
+    _logger = None
 
-    def __init__(self, strategy, config: FundingArbitrageExecutorConfig, update_interval: float, max_retries: int):
+    @classmethod
+    def logger(cls):
+        """Get logger instance for this class."""
+        if cls._logger is None:
+            cls._logger = logging.getLogger(__name__)
+        return cls._logger
+
+    def __init__(
+        self,
+        strategy,
+        config: FundingArbitrageExecutorConfig,
+        update_interval: float = 1.0,
+        max_retries: int = 3,
+    ):
         # Extract connectors list from config
         connectors = [config.long_connector_name, config.short_connector_name]
         super().__init__(strategy, connectors, config, update_interval)
@@ -29,8 +44,8 @@ class FundingArbitrageExecutor(ExecutorBase):
         self.max_retries = max_retries
 
         # Order tracking using TrackedOrder for proper fee tracking
-        self._long_order: Optional[TrackedOrder] = None
-        self._short_order: Optional[TrackedOrder] = None
+        self._long_order: TrackedOrder | None = None
+        self._short_order: TrackedOrder | None = None
 
         # Position state
         self._long_filled = False
@@ -39,8 +54,8 @@ class FundingArbitrageExecutor(ExecutorBase):
         self._short_position_amount: Decimal = Decimal(0)
 
         # Timing tracking
-        self._entry_start_time: Optional[float] = None
-        self._exposure_start_time: Optional[float] = None
+        self._entry_start_time: float | None = None
+        self._exposure_start_time: float | None = None
         self._warning_logged = False
 
         # PnL tracking
@@ -69,11 +84,10 @@ class FundingArbitrageExecutor(ExecutorBase):
 
     def stop(self):
         """Stop the executor and close all positions"""
-        super().stop()
         self.logger().info(f"Stopping FundingArbitrageExecutor for {self.config.token}")
-
-        # Schedule position closing
-        asyncio.create_task(self.close_all_positions(is_emergency=(self.close_type == CloseType.EARLY_STOP)))
+        # Set shutting down status to trigger position closing in control_task
+        self._status = RunnableStatus.SHUTTING_DOWN
+        super().stop()
 
     async def control_task(self):
         """Main control task managing both positions atomically - called periodically by base class"""
@@ -94,14 +108,16 @@ class FundingArbitrageExecutor(ExecutorBase):
             # Step 2: Check order status
             await self.update_order_status()
 
-            # Step 3: Handle unhedged exposure
+            # Step 3: Handle unhedged exposure with progressive reconciliation
             if self._has_unhedged_exposure():
                 if self._exposure_start_time is None:
                     self._exposure_start_time = current_time
+                    self._reconciliation_attempted = False
+                    self._market_order_attempted = False
 
                 exposure_duration = current_time - self._exposure_start_time
 
-                # Warning threshold
+                # Warning threshold (15s) - just warn
                 if exposure_duration > self.config.warning_exposure_time and not self._warning_logged:
                     self.logger().warning(
                         f"⚠️ Unhedged exposure for {exposure_duration:.1f}s on {self.config.token} "
@@ -109,17 +125,31 @@ class FundingArbitrageExecutor(ExecutorBase):
                         f"Short: {'FILLED' if self._short_filled else 'PENDING'})",
                     )
                     self._warning_logged = True
+                    # Start reconciliation - cancel and replace with aggressive limit
+                    await self._attempt_reconciliation_with_limit()
+                    self._reconciliation_attempted = True
 
-                # Emergency threshold
-                if exposure_duration > self.config.max_unhedged_exposure_time:
+                # Reconciliation threshold (60s) - use market order
+                elif exposure_duration > self.config.max_unhedged_exposure_time and not self._market_order_attempted:
                     self.logger().error(
-                        f"🚨 EMERGENCY: Unhedged exposure exceeded {self.config.max_unhedged_exposure_time}s "
+                        f"🚨 RECONCILIATION: Using MARKET ORDER after {exposure_duration:.1f}s "
                         f"for {self.config.token}",
+                    )
+                    await self._attempt_reconciliation_with_market()
+                    self._market_order_attempted = True
+
+                # Emergency close threshold (120s) - market order failed, close unhedged position only
+                elif exposure_duration > self.config.max_unhedged_exposure_time * 2:
+                    self.logger().error(
+                        f"💀 EMERGENCY CLOSE: Market order reconciliation failed after {exposure_duration:.1f}s "
+                        f"for {self.config.token}. Closing the unhedged position only.",
                     )
                     await self.emergency_hedge()
                     # Reset exposure tracking after emergency hedge
                     self._exposure_start_time = None
                     self._warning_logged = False
+                    self._reconciliation_attempted = False
+                    self._market_order_attempted = False
 
             # Step 4: Reset exposure tracking when hedged
             elif self._long_filled and self._short_filled:
@@ -134,16 +164,16 @@ class FundingArbitrageExecutor(ExecutorBase):
                     self._status = RunnableStatus.SHUTTING_DOWN
 
             # Step 5: Handle entry timeout
-            if self._entry_start_time and not self.is_trading:
-                if current_time - self._entry_start_time > self.config.entry_timeout:
-                    self.logger().warning(
-                        f"Entry timeout reached for {self.config.token}, cancelling unfilled orders",
-                    )
-                    await self.cancel_unfilled_orders()
-                    if self._long_filled or self._short_filled:
-                        # We have partial fill, need to close
-                        await self.close_all_positions()
-                    self._status = RunnableStatus.SHUTTING_DOWN
+            if (self._entry_start_time and not self.is_trading and
+                    current_time - self._entry_start_time > self.config.entry_timeout):
+                self.logger().warning(
+                    f"Entry timeout reached for {self.config.token}, cancelling unfilled orders",
+                )
+                await self.cancel_unfilled_orders()
+                if self._long_filled or self._short_filled:
+                    # We have partial fill, need to close
+                    await self.close_all_positions()
+                self._status = RunnableStatus.SHUTTING_DOWN
 
         except Exception as e:
             self.logger().error(f"Error in control task for {self.config.token}: {e}")
@@ -156,7 +186,10 @@ class FundingArbitrageExecutor(ExecutorBase):
         # Close positions if needed
         if self.close_type != CloseType.POSITION_HOLD:
             if self._long_filled or self._short_filled:
-                await self.close_all_positions()
+                await self.close_all_positions(is_emergency=(self.close_type == CloseType.EARLY_STOP))
+        else:
+            # Position hold - just cancel unfilled orders
+            await self.cancel_unfilled_orders()
 
         # Mark as terminated when done
         if not self.is_active:
@@ -177,16 +210,16 @@ class FundingArbitrageExecutor(ExecutorBase):
 
             # Get order prices (slightly better than mid for limit orders)
             long_price = long_connector.get_price_for_volume(
-                self.config.long_trading_pair, True, long_amount
+                self.config.long_trading_pair, True, long_amount,
             ).result_price
             short_price = short_connector.get_price_for_volume(
-                self.config.short_trading_pair, False, short_amount
+                self.config.short_trading_pair, False, short_amount,
             ).result_price
 
             self.logger().info(
                 f"Placing entry orders for {self.config.token}: "
                 f"Long {long_amount:.6f} @ {long_price:.4f}, "
-                f"Short {short_amount:.6f} @ {short_price:.4f}"
+                f"Short {short_amount:.6f} @ {short_price:.4f}",
             )
 
             # Place orders
@@ -199,7 +232,7 @@ class FundingArbitrageExecutor(ExecutorBase):
                     side=TradeType.BUY,
                     amount=long_amount,
                     position_action=PositionAction.OPEN,
-                    price=long_price
+                    price=long_price,
                 )
 
                 self._short_order = TrackedOrder()
@@ -210,7 +243,7 @@ class FundingArbitrageExecutor(ExecutorBase):
                     side=TradeType.SELL,
                     amount=short_amount,
                     position_action=PositionAction.OPEN,
-                    price=short_price
+                    price=short_price,
                 )
             else:
                 # Market orders
@@ -221,7 +254,7 @@ class FundingArbitrageExecutor(ExecutorBase):
                     order_type=OrderType.MARKET,
                     side=TradeType.BUY,
                     amount=long_amount,
-                    position_action=PositionAction.OPEN
+                    position_action=PositionAction.OPEN,
                 )
 
                 self._short_order = TrackedOrder()
@@ -231,7 +264,7 @@ class FundingArbitrageExecutor(ExecutorBase):
                     order_type=OrderType.MARKET,
                     side=TradeType.SELL,
                     amount=short_amount,
-                    position_action=PositionAction.OPEN
+                    position_action=PositionAction.OPEN,
                 )
 
         except Exception as e:
@@ -244,7 +277,7 @@ class FundingArbitrageExecutor(ExecutorBase):
         if self._long_order and not self._long_filled:
             order = self.get_in_flight_order(
                 self.config.long_connector_name,
-                self._long_order.order_id
+                self._long_order.order_id,
             )
             if order and order.is_filled:
                 self._long_filled = True
@@ -256,7 +289,7 @@ class FundingArbitrageExecutor(ExecutorBase):
         if self._short_order and not self._short_filled:
             order = self.get_in_flight_order(
                 self.config.short_connector_name,
-                self._short_order.order_id
+                self._short_order.order_id,
             )
             if order and order.is_filled:
                 self._short_filled = True
@@ -268,9 +301,113 @@ class FundingArbitrageExecutor(ExecutorBase):
         """Check if we have unhedged exposure (one position filled but not the other)"""
         return self._long_filled != self._short_filled
 
+    async def _attempt_reconciliation_with_limit(self):
+        """Try to reconcile positions with aggressive limit orders"""
+        try:
+            if self._long_filled and not self._short_filled:
+                # Long filled, need to fill short
+                self.logger().info(f"Reconciling: Cancelling and replacing SHORT order for {self.config.token}")
+
+                # Cancel existing short order
+                if self._short_order:
+                    await self._cancel_order(
+                        self.config.short_connector_name,
+                        self.config.short_trading_pair,
+                        self._short_order.order_id,
+                    )
+
+                # Place more aggressive limit order (improve price by 0.1%)
+                mid_price = self.connectors[self.config.short_connector_name].get_mid_price(self.config.short_trading_pair)
+                aggressive_price = mid_price * Decimal("1.001")  # 0.1% worse price for faster fill
+
+                self._short_order = await self._place_order(
+                    self.config.short_connector_name,
+                    self.config.short_trading_pair,
+                    True,  # is_sell
+                    self._short_position_amount,
+                    OrderType.LIMIT,
+                    aggressive_price,
+                )
+
+            elif self._short_filled and not self._long_filled:
+                # Short filled, need to fill long
+                self.logger().info(f"Reconciling: Cancelling and replacing LONG order for {self.config.token}")
+
+                # Cancel existing long order
+                if self._long_order:
+                    await self._cancel_order(
+                        self.config.long_connector_name,
+                        self.config.long_trading_pair,
+                        self._long_order.order_id,
+                    )
+
+                # Place more aggressive limit order (improve price by 0.1%)
+                mid_price = self.connectors[self.config.long_connector_name].get_mid_price(self.config.long_trading_pair)
+                aggressive_price = mid_price * Decimal("0.999")  # 0.1% worse price for faster fill
+
+                self._long_order = await self._place_order(
+                    self.config.long_connector_name,
+                    self.config.long_trading_pair,
+                    False,  # is_buy
+                    self._long_position_amount,
+                    OrderType.LIMIT,
+                    aggressive_price,
+                )
+
+        except Exception as e:
+            self.logger().error(f"Failed to reconcile with limit order for {self.config.token}: {e}")
+
+    async def _attempt_reconciliation_with_market(self):
+        """Force reconciliation with market orders"""
+        try:
+            if self._long_filled and not self._short_filled:
+                # Long filled, need to fill short with market order
+                self.logger().info(f"MARKET ORDER: Forcing SHORT position for {self.config.token}")
+
+                # Cancel existing short order if any
+                if self._short_order:
+                    await self._cancel_order(
+                        self.config.short_connector_name,
+                        self.config.short_trading_pair,
+                        self._short_order.order_id,
+                    )
+
+                # Place market order
+                self._short_order = await self._place_order(
+                    self.config.short_connector_name,
+                    self.config.short_trading_pair,
+                    True,  # is_sell
+                    self._short_position_amount,
+                    OrderType.MARKET,
+                )
+
+            elif self._short_filled and not self._long_filled:
+                # Short filled, need to fill long with market order
+                self.logger().info(f"MARKET ORDER: Forcing LONG position for {self.config.token}")
+
+                # Cancel existing long order if any
+                if self._long_order:
+                    await self._cancel_order(
+                        self.config.long_connector_name,
+                        self.config.long_trading_pair,
+                        self._long_order.order_id,
+                    )
+
+                # Place market order
+                self._long_order = await self._place_order(
+                    self.config.long_connector_name,
+                    self.config.long_trading_pair,
+                    False,  # is_buy
+                    self._long_position_amount,
+                    OrderType.MARKET,
+                )
+
+        except Exception as e:
+            self.logger().error(f"Failed to reconcile with MARKET order for {self.config.token}: {e}")
+
     async def emergency_hedge(self):
-        """Emergency procedure to close unhedged position"""
-        self.logger().error(f"🚨 Executing emergency hedge for {self.config.token}")
+        """Emergency procedure to close ONLY the unhedged position (not all positions)"""
+        self.logger().error(f"🚨 Executing emergency close of unhedged position for {self.config.token}")
 
         try:
             if self._long_filled and not self._short_filled:
@@ -281,7 +418,7 @@ class FundingArbitrageExecutor(ExecutorBase):
                     await self._cancel_order(
                         self.config.short_connector_name,
                         self.config.short_trading_pair,
-                        self._short_order.order_id
+                        self._short_order.order_id,
                     )
 
             elif self._short_filled and not self._long_filled:
@@ -292,7 +429,7 @@ class FundingArbitrageExecutor(ExecutorBase):
                     await self._cancel_order(
                         self.config.long_connector_name,
                         self.config.long_trading_pair,
-                        self._long_order.order_id
+                        self._long_order.order_id,
                     )
 
         except Exception as e:
@@ -307,7 +444,7 @@ class FundingArbitrageExecutor(ExecutorBase):
         if current_funding_diff < self.config.funding_rate_diff_stop_loss:
             self.logger().info(
                 f"Funding rate stop loss triggered for {self.config.token}: "
-                f"{current_funding_diff:.4%} < {self.config.funding_rate_diff_stop_loss:.4%}"
+                f"{current_funding_diff:.4%} < {self.config.funding_rate_diff_stop_loss:.4%}",
             )
             return True
 
@@ -317,7 +454,7 @@ class FundingArbitrageExecutor(ExecutorBase):
             if profit_pct >= config.take_profit:
                 self.logger().info(
                     f"Take profit triggered for {self.config.token}: "
-                    f"{profit_pct:.2%} >= {config.take_profit:.2%}"
+                    f"{profit_pct:.2%} >= {config.take_profit:.2%}",
                 )
                 return True
 
@@ -327,15 +464,15 @@ class FundingArbitrageExecutor(ExecutorBase):
             if loss_pct <= -config.stop_loss:
                 self.logger().info(
                     f"Stop loss triggered for {self.config.token}: "
-                    f"{loss_pct:.2%} <= -{config.stop_loss:.2%}"
+                    f"{loss_pct:.2%} <= -{config.stop_loss:.2%}",
                 )
                 return True
 
         # Check time limit
-        if config.time_limit and self._entry_start_time:
-            if self._strategy.current_timestamp - self._entry_start_time > config.time_limit:
-                self.logger().info(f"Time limit reached for {self.config.token}")
-                return True
+        if (config.time_limit and self._entry_start_time and
+                self._strategy.current_timestamp - self._entry_start_time > config.time_limit):
+            self.logger().info(f"Time limit reached for {self.config.token}")
+            return True
 
         return False
 
@@ -362,14 +499,34 @@ class FundingArbitrageExecutor(ExecutorBase):
         """Close the long position"""
         if self._long_position_amount > 0:
             self.logger().info(f"Closing long position for {self.config.token}: {self._long_position_amount}")
-            self.place_order(
-                connector_name=self.config.long_connector_name,
-                trading_pair=self.config.long_trading_pair,
-                order_type=OrderType.MARKET if use_market else OrderType.LIMIT,
-                side=TradeType.SELL,
-                amount=self._long_position_amount,
-                position_action=PositionAction.CLOSE
-            )
+
+            # Get the current price for LIMIT orders
+            if not use_market:
+                connector = self.connectors[self.config.long_connector_name]
+                # For closing long (selling), use bid price
+                price = connector.get_price_by_type(
+                    self.config.long_trading_pair,
+                    PriceType.BestBid,
+                )
+                self.place_order(
+                    connector_name=self.config.long_connector_name,
+                    trading_pair=self.config.long_trading_pair,
+                    order_type=OrderType.LIMIT,
+                    side=TradeType.SELL,
+                    amount=self._long_position_amount,
+                    position_action=PositionAction.CLOSE,
+                    price=price,
+                )
+            else:
+                self.place_order(
+                    connector_name=self.config.long_connector_name,
+                    trading_pair=self.config.long_trading_pair,
+                    order_type=OrderType.MARKET,
+                    side=TradeType.SELL,
+                    amount=self._long_position_amount,
+                    position_action=PositionAction.CLOSE,
+                )
+
             self._long_filled = False
             self._long_position_amount = Decimal(0)
 
@@ -377,14 +534,34 @@ class FundingArbitrageExecutor(ExecutorBase):
         """Close the short position"""
         if self._short_position_amount > 0:
             self.logger().info(f"Closing short position for {self.config.token}: {self._short_position_amount}")
-            self.place_order(
-                connector_name=self.config.short_connector_name,
-                trading_pair=self.config.short_trading_pair,
-                order_type=OrderType.MARKET if use_market else OrderType.LIMIT,
-                side=TradeType.BUY,
-                amount=self._short_position_amount,
-                position_action=PositionAction.CLOSE
-            )
+
+            # Get the current price for LIMIT orders
+            if not use_market:
+                connector = self.connectors[self.config.short_connector_name]
+                # For closing short (buying), use ask price
+                price = connector.get_price_by_type(
+                    self.config.short_trading_pair,
+                    PriceType.BestAsk,
+                )
+                self.place_order(
+                    connector_name=self.config.short_connector_name,
+                    trading_pair=self.config.short_trading_pair,
+                    order_type=OrderType.LIMIT,
+                    side=TradeType.BUY,
+                    amount=self._short_position_amount,
+                    position_action=PositionAction.CLOSE,
+                    price=price,
+                )
+            else:
+                self.place_order(
+                    connector_name=self.config.short_connector_name,
+                    trading_pair=self.config.short_trading_pair,
+                    order_type=OrderType.MARKET,
+                    side=TradeType.BUY,
+                    amount=self._short_position_amount,
+                    position_action=PositionAction.CLOSE,
+                )
+
             self._short_filled = False
             self._short_position_amount = Decimal(0)
 
@@ -394,7 +571,7 @@ class FundingArbitrageExecutor(ExecutorBase):
             await self._cancel_order(
                 self.config.long_connector_name,
                 self.config.long_trading_pair,
-                self._long_order.order_id
+                self._long_order.order_id,
             )
             self._long_order = None
 
@@ -402,7 +579,7 @@ class FundingArbitrageExecutor(ExecutorBase):
             await self._cancel_order(
                 self.config.short_connector_name,
                 self.config.short_trading_pair,
-                self._short_order.order_id
+                self._short_order.order_id,
             )
             self._short_order = None
 
@@ -416,7 +593,7 @@ class FundingArbitrageExecutor(ExecutorBase):
     def _get_position_pnl(self, connector_name: str, trading_pair: str) -> Decimal:
         """Get PnL for a specific position"""
         connector = self.connectors.get(connector_name)
-        if connector and hasattr(connector, 'get_unrealized_pnl'):
+        if connector and hasattr(connector, "get_unrealized_pnl"):
             return connector.get_unrealized_pnl(trading_pair) or Decimal(0)
         return Decimal(0)
 
@@ -627,7 +804,7 @@ class FundingArbitrageExecutor(ExecutorBase):
             "long_position_amount": str(self._long_position_amount),
             "short_position_amount": str(self._short_position_amount),
             "funding_payments_received": str(self._funding_payments_received),
-            "net_pnl_quote": str(self.get_net_pnl_quote())
+            "net_pnl_quote": str(self.get_net_pnl_quote()),
         }
 
     async def validate_sufficient_balance(self):
@@ -646,7 +823,7 @@ class FundingArbitrageExecutor(ExecutorBase):
         if long_quote_balance < position_size_quote:
             self.logger().error(
                 f"Insufficient {long_quote} balance on {self.config.long_connector_name}: "
-                f"have {long_quote_balance}, need {position_size_quote}"
+                f"have {long_quote_balance}, need {position_size_quote}",
             )
             self.close_type = CloseType.INSUFFICIENT_BALANCE
             raise ValueError(f"Insufficient balance for long position on {self.config.long_connector_name}")
@@ -666,7 +843,7 @@ class FundingArbitrageExecutor(ExecutorBase):
             if short_quote_balance < required_margin:
                 self.logger().error(
                     f"Insufficient margin on {self.config.short_connector_name}: "
-                    f"have {short_quote_balance}, need at least {required_margin}"
+                    f"have {short_quote_balance}, need at least {required_margin}",
                 )
                 self.close_type = CloseType.INSUFFICIENT_BALANCE
                 raise ValueError(f"Insufficient margin for short position on {self.config.short_connector_name}")
@@ -677,13 +854,13 @@ class FundingArbitrageExecutor(ExecutorBase):
             required_base = position_size_quote / self.get_price(
                 self.config.short_connector_name,
                 self.config.short_trading_pair,
-                PriceType.MidPrice
+                PriceType.MidPrice,
             )
 
             if short_base_balance < required_base:
                 self.logger().error(
                     f"Insufficient {short_base} balance on {self.config.short_connector_name}: "
-                    f"have {short_base_balance}, need {required_base}"
+                    f"have {short_base_balance}, need {required_base}",
                 )
                 self.close_type = CloseType.INSUFFICIENT_BALANCE
                 raise ValueError(f"Insufficient balance for short position on {self.config.short_connector_name}")
@@ -691,7 +868,7 @@ class FundingArbitrageExecutor(ExecutorBase):
         self.logger().info(
             f"Balance validation passed for {self.config.token} arbitrage: "
             f"Long {self.config.long_connector_name} has {long_quote_balance} {long_quote}, "
-            f"Short {self.config.short_connector_name} has sufficient balance"
+            f"Short {self.config.short_connector_name} has sufficient balance",
         )
 
     def early_stop(self, keep_position: bool = False):
@@ -702,16 +879,15 @@ class FundingArbitrageExecutor(ExecutorBase):
         """
         self.logger().info(
             f"Early stop requested for {self.config.token} arbitrage "
-            f"(keep_position={keep_position})"
+            f"(keep_position={keep_position})",
         )
 
         if keep_position:
             # Just stop the executor without closing positions
             self.close_type = CloseType.POSITION_HOLD
-            self._status = RunnableStatus.SHUTTING_DOWN
         else:
             # Close positions and stop
             self.close_type = CloseType.EARLY_STOP
-            self._status = RunnableStatus.SHUTTING_DOWN
 
-            # The control_shutdown_process will handle closing positions
+        # Set status to shutting down to trigger position closing in control_task
+        self._status = RunnableStatus.SHUTTING_DOWN

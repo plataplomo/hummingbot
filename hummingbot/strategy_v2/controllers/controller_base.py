@@ -28,11 +28,11 @@ class ControllerConfigBase(BaseClientModel):
     It inherits from the Pydantic BaseModel and includes several fields that are used to configure a controller.
 
     Attributes:
-        id (str): A unique identifier for the controller. If not provided, it will be automatically generated.
+        id (str): A unique identifier for the controller. Automatically generated if not provided.
         controller_name (str): The name of the trading strategy that the controller will use.
         candles_config (List[CandlesConfig]): A list of configurations for the candles data feed.
     """
-    id: str = Field(default=None,)
+    id: str = Field(default_factory=generate_unique_id)
     controller_name: str
     controller_type: str = "generic"
     total_amount_quote: Decimal = Field(
@@ -56,12 +56,8 @@ class ControllerConfigBase(BaseClientModel):
         })
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    @field_validator('id', mode="before")
-    @classmethod
-    def set_id(cls, v):
-        if v is None or v.strip() == "":
-            return generate_unique_id()
-        return v
+    # ID validator no longer needed - using default_factory instead
+    # This ensures IDs are always generated even when field is missing from input
 
     @field_validator('candles_config', mode="before")
     @classmethod
