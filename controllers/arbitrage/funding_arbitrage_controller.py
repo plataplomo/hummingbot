@@ -8,7 +8,7 @@ from enum import Enum
 
 from pydantic import Field, field_validator
 
-from hummingbot.core.data_type.common import MarketDict, OrderType
+from hummingbot.core.data_type.common import MarketDict, OrderType, PriceType
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.executors.funding_arbitrage_executor import FundingArbitrageExecutorConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
@@ -172,6 +172,13 @@ class FundingArbitrageControllerConfig(ControllerConfigBase):
         default=2,
         json_schema_extra={
             "prompt": "Reserved slots for premium tier opportunities: ",
+            "prompt_on_new": True,
+        },
+    )
+    min_position_age_before_replace_minutes: float = Field(
+        default=5.0,
+        json_schema_extra={
+            "prompt": "Minimum position age in minutes before considering replacement (e.g. 5.0 for 5 minutes): ",
             "prompt_on_new": True,
         },
     )
@@ -652,11 +659,21 @@ class FundingArbitrageController(ControllerBase):
         # Count current premium positions
         current_premium_count = sum(
             1 for e in active_executors
-            if hasattr(e, "tier") and e.tier == OpportunityTier.PREMIUM
+            if e.custom_info.get("tier") == OpportunityTier.PREMIUM.value
         )
 
+        # Filter out opportunities for tokens we already have positions in
+        # Type-safe access since we know these are FundingArbitrageExecutors
+        active_tokens = set()
+        for executor in active_executors:
+            if executor.type == "funding_arbitrage_executor":
+                # Safe to access token since we know the config type
+                active_tokens.add(executor.config.token)
+        new_opportunities = [opp for opp in opportunities if opp.token not in active_tokens]
+
         # Check if we should close any positions (poor performance or better opportunities available)
-        actions.extend(self._check_positions_to_close(active_executors, opportunities))
+        # Only consider truly NEW opportunities, not ones we already have
+        actions.extend(self._check_positions_to_close(active_executors, new_opportunities))
 
         # Priority queue: First fill premium slots, then others
         opportunities_to_process = self._prioritize_opportunities(
@@ -725,11 +742,20 @@ class FundingArbitrageController(ControllerBase):
         if len(active_executors) >= self.config.max_positions and new_opportunities:
             best_new_profit = new_opportunities[0].expected_profit if new_opportunities else Decimal(0)
 
-            # Find worst performing executor
+            # Find worst performing executor that has been running long enough to evaluate
+            # Don't close positions that just started (give them time to develop)
+            current_time = self.market_data_provider.time()
+            min_position_age_seconds = self.config.min_position_age_before_replace_minutes * 60
+
             worst_executor = None
             worst_performance = best_new_profit  # Only close if new opportunity is better
 
             for executor_info in active_executors:
+                # Skip recently created executors
+                position_age = current_time - executor_info.timestamp
+                if position_age < min_position_age_seconds:
+                    continue
+
                 # Get executor's current performance - ExecutorInfo has net_pnl_pct as a standard field
                 performance = executor_info.net_pnl_pct
                 if performance < worst_performance:
@@ -738,6 +764,11 @@ class FundingArbitrageController(ControllerBase):
 
             # Close worst performer if found
             if worst_executor:
+                self.logger().info(
+                    f"Closing {worst_executor.custom_info.get('token', 'unknown')} executor "
+                    f"(PnL: {worst_performance:.2%}) to make room for better opportunity "
+                    f"(expected: {best_new_profit:.2%})",
+                )
                 actions.append(StopExecutorAction(
                     controller_id=self.config.id,
                     executor_id=worst_executor.id,
@@ -745,9 +776,97 @@ class FundingArbitrageController(ControllerBase):
 
         return actions
 
+    def _validate_and_adjust_position_size(
+        self,
+        token: str,
+        position_size_quote: Decimal,
+        long_connector: str,
+        long_trading_pair: str,
+        short_connector: str,
+        short_trading_pair: str,
+    ) -> Decimal | None:
+        """Validate position size meets minimum order requirements for both exchanges.
+
+        Returns position size if valid, or None if requirements cannot be met.
+        """
+        try:
+            # Get current prices for conversion
+            long_price = self.market_data_provider.get_price_by_type(
+                long_connector, long_trading_pair, PriceType.MidPrice,
+            )
+            short_price = self.market_data_provider.get_price_by_type(
+                short_connector, short_trading_pair, PriceType.MidPrice,
+            )
+
+            if not long_price or not short_price:
+                self.logger().warning(f"Cannot get prices for {token} to validate position size")
+                return None
+
+            # Get trading rules for both exchanges
+            long_rules = self.market_data_provider.get_trading_rules(long_connector, long_trading_pair)
+            short_rules = self.market_data_provider.get_trading_rules(short_connector, short_trading_pair)
+
+            # Check minimum order size requirements
+            min_long_size = long_rules.min_order_size
+            min_short_size = short_rules.min_order_size
+
+            # Also check minimum notional requirements
+            min_long_notional = long_rules.min_notional_size
+            min_short_notional = short_rules.min_notional_size
+
+            # Calculate minimum required position size in quote
+            min_required_from_base = max(
+                min_long_size * long_price,
+                min_short_size * short_price,
+            )
+            min_required_from_notional = max(min_long_notional, min_short_notional)
+            min_required = max(min_required_from_base, min_required_from_notional)
+
+            # Add a small buffer (1%) to avoid edge cases
+            min_required_with_buffer = min_required * Decimal("1.01")
+
+            if position_size_quote < min_required_with_buffer:
+                self.logger().info(
+                    f"⚠️ Skipping {token}: Position size ${position_size_quote:.2f} below minimum "
+                    f"${min_required_with_buffer:.2f} (long: {min_long_size:.8f} {token} / "
+                    f"${min_long_notional:.2f}, short: {min_short_size:.8f} {token} / "
+                    f"${min_short_notional:.2f})",
+                )
+                # Don't trade this token in this session - position size too small
+                return None
+
+            return position_size_quote
+
+        except Exception as e:
+            self.logger().error(f"Error validating position size for {token}: {e}")
+            # In case of error, return original size and let executor handle it
+            return position_size_quote
+
     def _create_executor_action(self, opportunity: FundingOpportunity) -> CreateExecutorAction | None:
         """Create an executor action for a funding arbitrage opportunity"""
         try:
+            # Get exchange-specific quote currencies - these should always exist
+            # since opportunities are only created for configured exchanges
+            long_quote = self.config.quote_currency_map[opportunity.long_exchange]
+            short_quote = self.config.quote_currency_map[opportunity.short_exchange]
+
+            long_trading_pair = f"{opportunity.token}-{long_quote}"
+            short_trading_pair = f"{opportunity.token}-{short_quote}"
+
+            # Validate position size meets minimum order requirements
+            valid_size = self._validate_and_adjust_position_size(
+                opportunity.token,
+                self.config.position_size_quote,
+                opportunity.long_exchange,
+                long_trading_pair,
+                opportunity.short_exchange,
+                short_trading_pair,
+            )
+
+            if valid_size is None:
+                # Already logged in validation method
+                return None
+
             # Create triple barrier config for risk management
             triple_barrier = TripleBarrierConfig(
                 take_profit=self.config.profitability_to_take_profit,
@@ -760,21 +879,16 @@ class FundingArbitrageController(ControllerBase):
                 time_limit_order_type=self.config.close_order_type,
             )
 
-            # Get exchange-specific quote currencies - these should always exist
-            # since opportunities are only created for configured exchanges
-            long_quote = self.config.quote_currency_map[opportunity.long_exchange]
-            short_quote = self.config.quote_currency_map[opportunity.short_exchange]
-
-            # Create executor config
+            # Create executor config with adjusted position size
             executor_config = FundingArbitrageExecutorConfig(
                 controller_id=self.config.id,
                 timestamp=self.market_data_provider.time(),
                 token=opportunity.token,
                 long_connector_name=opportunity.long_exchange,
                 short_connector_name=opportunity.short_exchange,
-                long_trading_pair=f"{opportunity.token}-{long_quote}",
-                short_trading_pair=f"{opportunity.token}-{short_quote}",
-                position_size_quote=self.config.position_size_quote,
+                long_trading_pair=long_trading_pair,
+                short_trading_pair=short_trading_pair,
+                position_size_quote=valid_size,
                 leverage=self.config.leverage,
                 triple_barrier_config=triple_barrier,
                 min_funding_rate_profitability=self.config.min_funding_rate_profitability,
@@ -875,13 +989,13 @@ class FundingArbitrageController(ControllerBase):
                 total_pnl += pnl
 
                 tier_tag = ""
-                if hasattr(executor, "tier"):
-                    if executor.tier == OpportunityTier.PREMIUM:
-                        tier_tag = " 💎"
-                    elif executor.tier == OpportunityTier.STANDARD:
-                        tier_tag = " 🔶"
-                    else:
-                        tier_tag = " ⚪"
+                tier_value = executor.custom_info.get("tier")
+                if tier_value == OpportunityTier.PREMIUM.value:
+                    tier_tag = " 💎"
+                elif tier_value == OpportunityTier.STANDARD.value:
+                    tier_tag = " 🔶"
+                elif tier_value == OpportunityTier.MARGINAL.value:
+                    tier_tag = " ⚪"
 
                 lines.append(
                     f"- {config.token} ({config.long_connector_name}/{config.short_connector_name}){tier_tag}: "
