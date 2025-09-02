@@ -31,7 +31,8 @@ class FundingArbitrageWithControllerConfig(StrategyV2ConfigBase):
     # Controller configuration files
     controllers_config: list[str] = Field(default_factory=lambda: ["funding_arbitrage_controller_config.yml"])
 
-    # Markets will be populated by controller
+    # Markets will be auto-populated by controller's update_markets() method
+    # Leave empty and let the controller populate from its tokens/connectors config
     markets: MarketDict = Field(default_factory=MarketDict)
     candles_config: list[CandlesConfig] = Field(default_factory=list)
 

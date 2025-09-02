@@ -2,14 +2,13 @@
 Funding Arbitrage Controller - Portfolio-level management for multi-token funding arbitrage
 Manages capital allocation, opportunity ranking, and global risk across multiple funding arbitrage positions
 """
-import time
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
 
 from pydantic import Field, field_validator
 
-from hummingbot.core.data_type.common import OrderType
+from hummingbot.core.data_type.common import MarketDict, OrderType
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.executors.funding_arbitrage_executor import FundingArbitrageExecutorConfig
 from hummingbot.strategy_v2.executors.position_executor.data_types import TripleBarrierConfig
@@ -43,18 +42,15 @@ class FundingOpportunity:
     def opportunity_id(self) -> str:
         return f"{self.token}_{self.long_exchange}_{self.short_exchange}"
 
-    @property
-    def age_seconds(self) -> float:
+    def age_seconds(self, current_time: float) -> float:
         """How long this opportunity has existed"""
-        return time.time() - self.discovered_at if self.discovered_at else 0
+        return current_time - self.discovered_at if self.discovered_at else 0
 
-    @property
-    def staleness_seconds(self) -> float:
+    def staleness_seconds(self, current_time: float) -> float:
         """How long since this opportunity was last updated"""
-        return time.time() - self.last_updated if self.last_updated else 0
+        return current_time - self.last_updated if self.last_updated else 0
 
-    @property
-    def priority_score(self) -> Decimal:
+    def priority_score(self, current_time: float) -> Decimal:
         """Calculate priority score for opportunity ranking"""
         # Base score is the spread
         score = self.spread
@@ -66,7 +62,8 @@ class FundingOpportunity:
             score *= Decimal("1.5")
 
         # Decay score based on age (reduce by 10% per hour)
-        age_hours = Decimal(str(self.age_seconds / 3600))
+        age_seconds = self.age_seconds(current_time)
+        age_hours = Decimal(str(age_seconds / 3600))
         decay_factor = max(Decimal("0.5"), Decimal(1) - (age_hours * Decimal("0.1")))
         score *= decay_factor
 
@@ -272,6 +269,33 @@ class FundingArbitrageControllerConfig(ControllerConfigBase):
         },
     )
 
+    def update_markets(self, markets: MarketDict) -> MarketDict:
+        """
+        Update the markets dict automatically from controller configuration.
+        This eliminates the need to manually configure markets in the script config.
+        """
+        # Build markets dict from tokens and connectors
+        for connector in self.connectors:
+            if connector not in markets:
+                markets[connector] = set()
+
+            # Get the quote currency for this connector - fail fast if not configured
+            if connector not in self.quote_currency_map:
+                raise ValueError(
+                    f"Connector '{connector}' not found in quote_currency_map. "
+                    f"Please add it to the config. Available: {list(self.quote_currency_map.keys())}",
+                )
+            quote_currency = self.quote_currency_map[connector]
+
+            # Add all token pairs for this connector
+            connector_markets = markets[connector]
+            for token in self.tokens:
+                trading_pair = f"{token}-{quote_currency}"
+                # mypy incorrectly infers Set[Set[str]] instead of Set[str] for GroupedSetDict values
+                connector_markets.add(trading_pair)  # type: ignore[arg-type]
+
+        return markets
+
 
 class FundingArbitrageController(ControllerBase):
     """
@@ -296,15 +320,29 @@ class FundingArbitrageController(ControllerBase):
         self._last_scan_time: float = 0
         self._scan_interval: float = config.opportunity_refresh_interval
         self._premium_slots_used: int = 0  # Track premium tier slot usage
+        self._pending_executor_tokens: set[str] = set()  # Track tokens with pending executor creation
 
     def get_trading_pair(self, token: str, connector: str) -> str:
         """Get the correct trading pair format for a token on a specific exchange"""
-        quote_currency = self.config.quote_currency_map.get(connector, "USDT")
+        if connector not in self.config.quote_currency_map:
+            raise ValueError(
+                f"Connector '{connector}' not found in quote_currency_map. "
+                f"Please add it to the config. Available: {list(self.config.quote_currency_map.keys())}",
+            )
+        quote_currency = self.config.quote_currency_map[connector]
         return f"{token}-{quote_currency}"
 
     async def update_processed_data(self):
         """Scan market for funding arbitrage opportunities"""
         current_time = self.market_data_provider.time()
+
+        # Clean up pending tokens for any terminated executors
+        for executor_info in self.executors_info:
+            if (executor_info.status in [RunnableStatus.TERMINATED, RunnableStatus.SHUTTING_DOWN] and
+                    executor_info.type == "funding_arbitrage_executor"):
+                # Type-safe access to token attribute
+                config = executor_info.config  # type: FundingArbitrageExecutorConfig
+                self._pending_executor_tokens.discard(config.token)
 
         elapsed = current_time - self._last_scan_time
         self.logger().debug(
@@ -329,9 +367,10 @@ class FundingArbitrageController(ControllerBase):
         opportunities = self._filter_stale_opportunities(opportunities)
 
         # Rank opportunities by priority score (considers tier and age)
+        current_time = self.market_data_provider.time()
         ranked_opportunities = sorted(
             opportunities,
-            key=lambda x: x.priority_score,
+            key=lambda x: x.priority_score(current_time),
             reverse=True,
         )
 
@@ -359,9 +398,18 @@ class FundingArbitrageController(ControllerBase):
             for connector in self.config.connectors:
                 try:
                     # Get funding rate for token on this exchange
-                    # Use exchange-specific quote currency
-                    quote_currency = self.config.quote_currency_map.get(connector, "USDT")
+                    # Use exchange-specific quote currency - fail fast if not configured
+                    if connector not in self.config.quote_currency_map:
+                        self.logger().error(
+                            f"Connector '{connector}' not in quote_currency_map. Skipping.",
+                        )
+                        continue
+                    quote_currency = self.config.quote_currency_map[connector]
                     symbol = f"{token}-{quote_currency}"
+
+                    # Check if the trading pair exists on this exchange by trying to get funding info
+                    # Note: No has_market method, so we'll catch exceptions when fetching funding
+
                     self.logger().debug(f"  Fetching funding info for {symbol} on {connector}")
 
                     funding_info = self.market_data_provider.get_funding_info(
@@ -433,7 +481,7 @@ class FundingArbitrageController(ControllerBase):
 
                 if spread > best_spread:
                     best_spread = spread
-                    current_time = time.time()
+                    current_time = self.market_data_provider.time()
                     tier = self._classify_opportunity_tier(spread)
                     best_opportunity = FundingOpportunity(
                         token=token,
@@ -467,7 +515,7 @@ class FundingArbitrageController(ControllerBase):
     def _update_opportunity_history(self, fresh_opportunities: list[FundingOpportunity]) -> list[FundingOpportunity]:
         """Update opportunity history with fresh data and preserve discovery times"""
         updated_opportunities = []
-        current_time = time.time()
+        current_time = self.market_data_provider.time()
 
         for opp in fresh_opportunities:
             opp_id = opp.opportunity_id
@@ -507,12 +555,14 @@ class FundingArbitrageController(ControllerBase):
         """Remove opportunities that are too old or stale"""
         filtered = []
         max_age = self.config.max_opportunity_age_hours * 3600  # Convert hours to seconds
+        current_time = self.market_data_provider.time()
 
         for opp in opportunities:
-            if opp.age_seconds > max_age:
+            age_seconds = opp.age_seconds(current_time)
+            if age_seconds > max_age:
                 self.logger().debug(
                     f"Removing stale opportunity {opp.opportunity_id}: "
-                    f"Age {opp.age_seconds:.0f}s > {max_age}s",
+                    f"Age {age_seconds:.0f}s > {max_age}s",
                 )
                 # Remove from history
                 if opp.opportunity_id in self._opportunity_history:
@@ -559,16 +609,16 @@ class FundingArbitrageController(ControllerBase):
     def _make_room_for_premium(self, premium_opp: FundingOpportunity, actions: list[ExecutorAction]) -> bool:
         """Try to close marginal positions to make room for premium opportunity"""
         # Find marginal positions that could be closed
+        # Note: ExecutorInfo doesn't have tier, but we can check the custom_info
         marginal_executors = [
             e for e in self.executors_info
-            if e.status == RunnableStatus.RUNNING
-            and hasattr(e, "tier")
-            and e.tier == OpportunityTier.MARGINAL
+            if (e.status == RunnableStatus.RUNNING and
+                e.custom_info.get("tier") == OpportunityTier.MARGINAL)
         ]
 
         if marginal_executors:
-            # Close the worst marginal position
-            worst = min(marginal_executors, key=lambda e: getattr(e, "net_pnl_pct", 0))
+            # Close the worst marginal position based on PnL
+            worst = min(marginal_executors, key=lambda e: e.net_pnl_pct)
             actions.append(StopExecutorAction(
                 controller_id=self.config.id,
                 executor_id=worst.id,
@@ -641,6 +691,9 @@ class FundingArbitrageController(ControllerBase):
                     available_capital -= opportunity.required_capital
                     active_count += 1
 
+                    # Mark token as having a pending executor
+                    self._pending_executor_tokens.add(opportunity.token)
+
                     if opportunity.tier == OpportunityTier.PREMIUM:
                         self._premium_slots_used += 1
 
@@ -652,12 +705,19 @@ class FundingArbitrageController(ControllerBase):
 
     def _is_opportunity_active(self, opportunity: FundingOpportunity) -> bool:
         """Check if we already have an active executor for this opportunity"""
+        # First check if we have a pending executor for this token
+        if opportunity.token in self._pending_executor_tokens:
+            return True
+
+        # Then check existing executors - only funding arbitrage executors are relevant
         for executor_info in self.executors_info:
-            if executor_info.status == RunnableStatus.RUNNING:
-                config = executor_info.config
-                if (config.token == opportunity.token and
-                    config.long_connector_name == opportunity.long_exchange and
-                        config.short_connector_name == opportunity.short_exchange):
+            if (executor_info.status == RunnableStatus.RUNNING and
+                    executor_info.type == "funding_arbitrage_executor"):
+                # Now we know it's a FundingArbitrageExecutorConfig which has token attribute
+                config = executor_info.config  # type: FundingArbitrageExecutorConfig
+                if config.token == opportunity.token:
+                    # Clear pending status since executor is confirmed active
+                    self._pending_executor_tokens.discard(opportunity.token)
                     return True
         return False
 
@@ -674,12 +734,11 @@ class FundingArbitrageController(ControllerBase):
             worst_performance = best_new_profit  # Only close if new opportunity is better
 
             for executor_info in active_executors:
-                # Get executor's current performance
-                if hasattr(executor_info, "net_pnl_pct"):
-                    performance = executor_info.net_pnl_pct
-                    if performance < worst_performance:
-                        worst_performance = performance
-                        worst_executor = executor_info
+                # Get executor's current performance - ExecutorInfo has net_pnl_pct as a standard field
+                performance = executor_info.net_pnl_pct
+                if performance < worst_performance:
+                    worst_performance = performance
+                    worst_executor = executor_info
 
             # Close worst performer if found
             if worst_executor:
@@ -705,9 +764,10 @@ class FundingArbitrageController(ControllerBase):
                 time_limit_order_type=self.config.close_order_type,
             )
 
-            # Get exchange-specific quote currencies
-            long_quote = self.config.quote_currency_map.get(opportunity.long_exchange, "USDT")
-            short_quote = self.config.quote_currency_map.get(opportunity.short_exchange, "USDT")
+            # Get exchange-specific quote currencies - these should always exist
+            # since opportunities are only created for configured exchanges
+            long_quote = self.config.quote_currency_map[opportunity.long_exchange]
+            short_quote = self.config.quote_currency_map[opportunity.short_exchange]
 
             # Create executor config
             executor_config = FundingArbitrageExecutorConfig(
@@ -776,8 +836,8 @@ class FundingArbitrageController(ControllerBase):
             lines.append("\n=== Top Opportunities (by Priority Score) ===")
             for i, opp in enumerate(opportunities[:5], 1):
                 # Show quote currencies for clarity
-                long_quote = self.config.quote_currency_map.get(opp.long_exchange, "USDT")
-                short_quote = self.config.quote_currency_map.get(opp.short_exchange, "USDT")
+                long_quote = self.config.quote_currency_map[opp.long_exchange]
+                short_quote = self.config.quote_currency_map[opp.short_exchange]
                 tier_indicator = ""
                 if opp.tier == OpportunityTier.PREMIUM:
                     tier_indicator = " 💎[PREMIUM]"
@@ -787,25 +847,27 @@ class FundingArbitrageController(ControllerBase):
                     tier_indicator = " ⚪[MARGINAL]"
 
                 age_indicator = ""
-                if opp.age_seconds > 1800:  # More than 30 minutes old
-                    age_indicator = f" ⏰({opp.age_seconds / 60:.0f}m old)"
+                age_seconds = opp.age_seconds(self.market_data_provider.time())
+                if age_seconds > 1800:  # More than 30 minutes old
+                    age_indicator = f" ⏰({age_seconds / 60:.0f}m old)"
 
+                priority_score = opp.priority_score(self.market_data_provider.time())
                 lines.append(
                     f"{i}. {opp.token}: {opp.long_exchange}({long_quote}) long / "
                     f"{opp.short_exchange}({short_quote}) short{tier_indicator} | "
-                    f"Spread: {opp.spread:.4%} | Priority: {opp.priority_score:.4f}{age_indicator}",
+                    f"Spread: {opp.spread:.4%} | Priority: {priority_score:.4f}{age_indicator}",
                 )
 
         # Premium opportunities specifically
         premium_opps = self.processed_data.get("premium_opportunities", [])
         if premium_opps:
             lines.append(f"\n💎 Premium Opportunities: {len(premium_opps)} available")
-            for opp in premium_opps[:3]:
-                lines.extend([
-                    f"  - {opp.token}: {opp.spread:.4%} spread | "
-                    f"Age: {opp.age_seconds / 60:.1f}m"
-                    for opp in premium_opps[:3]
-                ])
+            current_time = self.market_data_provider.time()
+            lines.extend([
+                f"  - {opp.token}: {opp.spread:.4%} spread | "
+                f"Age: {opp.age_seconds(current_time) / 60:.1f}m"
+                for opp in premium_opps[:3]
+            ])
 
         # Active positions performance with tier
         if active_executors:
