@@ -527,7 +527,12 @@ class FundingArbitrageExecutor(ExecutorBase):
         return price
 
     async def place_entry_orders(self):
-        """Place both entry orders atomically"""
+        """Place both entry orders sequentially following V2 architecture
+
+        Orders are placed one after another as per V2 design patterns.
+        The control_task() and reconciliation logic handle any unhedged
+        exposure that may occur if one order fails.
+        """
         try:
             # Get connectors
             long_connector = self.connectors[self.config.long_connector_name]
@@ -545,12 +550,17 @@ class FundingArbitrageExecutor(ExecutorBase):
                 f"Short {short_amount:.6f} @ {short_price:.4f}",
             )
 
-            # Place the orders
+            # Place orders sequentially following V2 architecture patterns
+            # This is how all V2 executors work (ArbitrageExecutor, DCAExecutor, etc.)
             await self._place_long_entry(long_amount, long_price)
             await self._place_short_entry(short_amount, short_price)
 
+            # The control_task() will detect and handle any unhedged exposure
+            # through the reconciliation logic in _handle_unhedged_exposure()
+
         except Exception as e:
             self.logger().error(f"Failed to place entry orders for {self.config.token}: {e}")
+            # Let the control loop handle partial order scenarios
             raise
 
     def _calculate_entry_amounts(self, long_connector, short_connector) -> tuple[Decimal, Decimal]:
@@ -701,17 +711,98 @@ class FundingArbitrageExecutor(ExecutorBase):
         """Check if we have unhedged exposure (one position filled but not the other)"""
         return self._is_position_filled("long") != self._is_position_filled("short")
 
+    def calculate_reconciliation_price(
+        self, connector, trading_pair: str, is_buy: bool, exposure_duration: float,
+    ) -> Decimal:
+        """
+        Calculate reconciliation price with progressive tick-based aggression.
+
+        Args:
+            connector: Exchange connector
+            trading_pair: Trading pair
+            is_buy: True for buy orders, False for sell orders
+            exposure_duration: How long position has been unhedged
+
+        Returns:
+            Progressively more aggressive price based on exposure duration
+        """
+        # Get orderbook data and tick size
+        bid, ask, spread, spread_pct = self._get_order_book_data(connector, trading_pair)
+        mid_price = (bid + ask) / Decimal(2)
+        tick_size = connector.get_order_price_quantum(trading_pair, mid_price)
+
+        # Calculate phase boundaries based on config
+        warning_time = self.config.warning_exposure_time
+        max_time = self.config.max_unhedged_exposure_time
+
+        phase1_end = warning_time + (max_time - warning_time) * Decimal("0.4")
+        phase2_end = warning_time + (max_time - warning_time) * Decimal("0.7")
+
+        # Determine aggression level and calculate price
+        exposure_duration_decimal = Decimal(exposure_duration)
+        if exposure_duration_decimal < phase1_end:
+            # Phase 1: Conservative - try to be a maker
+            # Place at best bid/ask
+            price = bid if is_buy else ask
+            aggression_level = "conservative"
+
+        elif exposure_duration_decimal < phase2_end:
+            # Phase 2: Moderate - move into spread by 1-2 ticks
+            ticks_into_spread = 1 if spread / tick_size > 3 else 0
+            price = (
+                bid + (tick_size * ticks_into_spread) if is_buy
+                else ask - (tick_size * ticks_into_spread)
+            )
+            aggression_level = "moderate"
+
+        else:
+            # Phase 3: Aggressive - progressively move deeper into spread
+            phase3_progress = min(
+                (exposure_duration_decimal - phase2_end) / (max_time - phase2_end),
+                Decimal(1),
+            )
+
+            # Start at 2 ticks, scale up to crossing half the spread
+            base_ticks = 2
+            max_aggression_ticks = max(int(spread / tick_size / 2), 3)
+            aggressive_ticks = base_ticks + int(phase3_progress * (max_aggression_ticks - base_ticks))
+
+            if is_buy:
+                price = min(bid + (tick_size * aggressive_ticks), ask - tick_size)
+            else:
+                price = max(ask - (tick_size * aggressive_ticks), bid + tick_size)
+            aggression_level = "aggressive"
+
+        # Apply exchange quantization
+        price = connector.quantize_order_price(trading_pair, price)
+
+        self.logger().info(
+            f"Reconciliation price ({aggression_level}) for {trading_pair}: "
+            f"{'buy' if is_buy else 'sell'} at {price:.4f} "
+            f"(bid={bid:.4f}, ask={ask:.4f}, spread={spread_pct:.3f}%, "
+            f"exposure={exposure_duration:.1f}s)",
+        )
+
+        return price
+
     async def _reconcile_with_limit_order(self, missing_leg: MissingLeg):
         """
-        Reconcile missing leg with an aggressive limit order.
+        Reconcile missing leg with a limit order using progressive tick-based aggression.
 
         Args:
             missing_leg: "long" or "short" - which leg needs to be filled
         """
         try:
+            # Calculate how long we've been unhedged
+            current_time = self._strategy.current_timestamp
+            exposure_duration = current_time - self._exposure_start_time if self._exposure_start_time else 0
+
             if missing_leg == "short":
                 # Long filled, need to fill short
-                self.logger().info(f"Reconciling: Placing aggressive SHORT limit order for {self.config.token}")
+                self.logger().info(
+                    f"Reconciling SHORT position for {self.config.token} "
+                    f"after {exposure_duration:.1f}s unhedged",
+                )
 
                 # Cancel existing short order
                 if self._short_order and self._short_order.order_id:
@@ -728,15 +819,13 @@ class FundingArbitrageExecutor(ExecutorBase):
                     self.logger().error(f"Cannot reconcile: Long position amount is {reconcile_amount}")
                     return
 
-                # Use smart pricing but more aggressive for reconciliation
-                aggressive_price = self.calculate_maker_price(
+                # Calculate progressively aggressive reconciliation price
+                aggressive_price = self.calculate_reconciliation_price(
                     connector,
                     self.config.short_trading_pair,
                     is_buy=False,
-                    is_entry=True,  # Use entry pricing (more aggressive)
+                    exposure_duration=exposure_duration,
                 )
-                # Make it even more aggressive by 0.1%
-                aggressive_price = aggressive_price * Decimal("0.999")
 
                 # Initialize TrackedOrder if needed
                 if not self._short_order:
@@ -754,7 +843,10 @@ class FundingArbitrageExecutor(ExecutorBase):
 
             elif missing_leg == "long":
                 # Short filled, need to fill long
-                self.logger().info(f"Reconciling: Placing aggressive LONG limit order for {self.config.token}")
+                self.logger().info(
+                    f"Reconciling LONG position for {self.config.token} "
+                    f"after {exposure_duration:.1f}s unhedged",
+                )
 
                 # Cancel existing long order
                 if self._long_order and self._long_order.order_id:
@@ -771,15 +863,13 @@ class FundingArbitrageExecutor(ExecutorBase):
                     self.logger().error(f"Cannot reconcile: Short position amount is {reconcile_amount}")
                     return
 
-                # Use smart pricing but more aggressive for reconciliation
-                aggressive_price = self.calculate_maker_price(
+                # Calculate progressively aggressive reconciliation price
+                aggressive_price = self.calculate_reconciliation_price(
                     connector,
                     self.config.long_trading_pair,
                     is_buy=True,
-                    is_entry=True,  # Use entry pricing (more aggressive)
+                    exposure_duration=exposure_duration,
                 )
-                # Make it even more aggressive by 0.1%
-                aggressive_price = aggressive_price * Decimal("1.001")
 
                 # Initialize TrackedOrder if needed
                 if not self._long_order:
@@ -1150,25 +1240,59 @@ class FundingArbitrageExecutor(ExecutorBase):
             self.logger().warning(f"Failed to cancel order {order_id}: {e}")
 
     def _get_position_pnl(self, connector_name: str, trading_pair: str) -> Decimal:
-        """Get PnL for a specific position"""
+        """Calculate PnL for a specific position using V2 architecture principles
+
+        This method calculates PnL based on tracked orders and current market prices,
+        following the V2 executor pattern rather than relying on connector-specific methods.
+        """
         connector = self.connectors.get(connector_name)
         if not connector:
             return Decimal(0)
 
-        # Only perpetual connectors have unrealized PnL
+        # For perpetual connectors, calculate PnL from entry and current prices
         if self.is_perpetual_connector(connector_name):
-            try:
-                pnl = connector.get_unrealized_pnl(trading_pair)
-                if pnl is None:
-                    raise ValueError(f"Unable to get unrealized PnL for {trading_pair} on {connector_name}")
-                return pnl
-            except AttributeError as e:
-                self.logger().error(f"Connector {connector_name} doesn't support get_unrealized_pnl")
-                raise ValueError(
-                    f"Perpetual connector {connector_name} missing required get_unrealized_pnl method",
-                ) from e
+            # Determine which position we're checking
+            is_long = connector_name == self.config.long_connector_name
 
-        # For spot connectors, PnL is not applicable
+            # Get the tracked order for this position
+            tracked_order = self._long_order if is_long else self._short_order
+            if not tracked_order or not tracked_order.order:
+                return Decimal(0)
+
+            # Only calculate PnL if the position is filled
+            if not tracked_order.is_filled:
+                return Decimal(0)
+
+            # Get entry price and amount
+            entry_price = tracked_order.average_executed_price
+            amount = tracked_order.executed_amount_base
+
+            if entry_price == 0 or amount == 0:
+                return Decimal(0)
+
+            # Get current market price
+            try:
+                current_price = self.get_price(connector_name, trading_pair, PriceType.MidPrice)
+            except Exception as e:
+                self.logger().debug(f"Failed to get current price for {trading_pair}: {e}")
+                return Decimal(0)
+
+            # Calculate PnL based on position side
+            if is_long:
+                # Long position: profit when price goes up
+                pnl_pct = (current_price - entry_price) / entry_price
+            else:
+                # Short position: profit when price goes down
+                pnl_pct = (entry_price - current_price) / entry_price
+
+            # Calculate PnL in quote currency
+            position_value = amount * entry_price
+            pnl_quote = pnl_pct * position_value
+
+            return pnl_quote
+
+        # For spot connectors, PnL calculation would be different
+        # But funding arbitrage uses perpetuals, so return 0 for spot
         return Decimal(0)
 
     def _get_current_funding_diff(self) -> Decimal:
