@@ -320,7 +320,6 @@ class FundingArbitrageController(ControllerBase):
         self._last_scan_time: float = 0
         self._scan_interval: float = config.opportunity_refresh_interval
         self._premium_slots_used: int = 0  # Track premium tier slot usage
-        self._pending_executor_tokens: set[str] = set()  # Track tokens with pending executor creation
 
     def get_trading_pair(self, token: str, connector: str) -> str:
         """Get the correct trading pair format for a token on a specific exchange"""
@@ -335,23 +334,20 @@ class FundingArbitrageController(ControllerBase):
     async def update_processed_data(self):
         """Scan market for funding arbitrage opportunities"""
         current_time = self.market_data_provider.time()
-
-        # Clean up pending tokens for any terminated executors
-        for executor_info in self.executors_info:
-            if (executor_info.status in [RunnableStatus.TERMINATED, RunnableStatus.SHUTTING_DOWN] and
-                    executor_info.type == "funding_arbitrage_executor"):
-                # Type-safe access to token attribute
-                config = executor_info.config  # type: FundingArbitrageExecutorConfig
-                self._pending_executor_tokens.discard(config.token)
-
         elapsed = current_time - self._last_scan_time
-        self.logger().debug(
-            f"📊 update_processed_data called - elapsed: {elapsed:.1f}s, interval: {self._scan_interval}s",
-        )
 
         # Only scan periodically to avoid excessive API calls
+        # This respects the framework's synchronization - we only run when executors_update_event is set
         if elapsed < self._scan_interval:
-            self.logger().debug(f"⏳ Skipping scan, only {elapsed:.1f}s elapsed (need {self._scan_interval}s)")
+            self.logger().debug(
+                f"⏳ Skipping scan, only {elapsed:.1f}s elapsed (need {self._scan_interval}s). "
+                "Will wait for next update event.",
+            )
+            # Don't process opportunities yet - this prevents creating duplicate executors
+            # The framework will call us again when executors are updated
+            self.processed_data["opportunities"] = []
+            self.processed_data["available_capital"] = Decimal(0)
+            self.processed_data["premium_opportunities"] = []
             return
 
         self.logger().info(f"\n🚀 STARTING FUNDING OPPORTUNITY SCAN at {current_time:.1f}")
@@ -691,9 +687,6 @@ class FundingArbitrageController(ControllerBase):
                     available_capital -= opportunity.required_capital
                     active_count += 1
 
-                    # Mark token as having a pending executor
-                    self._pending_executor_tokens.add(opportunity.token)
-
                     if opportunity.tier == OpportunityTier.PREMIUM:
                         self._premium_slots_used += 1
 
@@ -705,20 +698,23 @@ class FundingArbitrageController(ControllerBase):
 
     def _is_opportunity_active(self, opportunity: FundingOpportunity) -> bool:
         """Check if we already have an active executor for this opportunity"""
-        # First check if we have a pending executor for this token
-        if opportunity.token in self._pending_executor_tokens:
-            return True
+        # Check existing executors - look at all non-terminated statuses
+        # The framework's synchronization (executors_update_event) ensures we won't
+        # create duplicates during the async window
+        active_executors = self.filter_executors(
+            executors=self.executors_info,
+            filter_func=lambda x: (
+                x.status not in [RunnableStatus.TERMINATED, RunnableStatus.SHUTTING_DOWN] and
+                x.type == "funding_arbitrage_executor"
+            ),
+        )
 
-        # Then check existing executors - only funding arbitrage executors are relevant
-        for executor_info in self.executors_info:
-            if (executor_info.status == RunnableStatus.RUNNING and
-                    executor_info.type == "funding_arbitrage_executor"):
-                # Now we know it's a FundingArbitrageExecutorConfig which has token attribute
-                config = executor_info.config  # type: FundingArbitrageExecutorConfig
-                if config.token == opportunity.token:
-                    # Clear pending status since executor is confirmed active
-                    self._pending_executor_tokens.discard(opportunity.token)
-                    return True
+        for executor_info in active_executors:
+            # Type-safe access to token attribute
+            config = executor_info.config  # type: FundingArbitrageExecutorConfig
+            if config.token == opportunity.token:
+                return True
+
         return False
 
     def _check_positions_to_close(self, active_executors, new_opportunities) -> list[ExecutorAction]:
