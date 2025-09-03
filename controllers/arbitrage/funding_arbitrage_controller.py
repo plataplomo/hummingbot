@@ -8,6 +8,7 @@ from enum import Enum
 
 from pydantic import Field, field_validator
 
+from hummingbot.client.settings import AllConnectorSettings
 from hummingbot.core.data_type.common import MarketDict, OrderType, PriceType
 from hummingbot.strategy_v2.controllers.controller_base import ControllerBase, ControllerConfigBase
 from hummingbot.strategy_v2.executors.funding_arbitrage_executor import FundingArbitrageExecutorConfig
@@ -328,6 +329,24 @@ class FundingArbitrageController(ControllerBase):
         self._scan_interval: float = config.opportunity_refresh_interval
         self._premium_slots_used: int = 0  # Track premium tier slot usage
 
+    def on_stop(self):
+        """Clean up controller state when stopped"""
+        self.logger().info("🛑 Stopping FundingArbitrageController - cleaning up state")
+
+        # Clear all tracking dictionaries
+        self._active_opportunities.clear()
+        self._opportunity_history.clear()
+
+        # Reset state variables
+        self._allocated_capital = Decimal(0)
+        self._last_scan_time = 0
+        self._premium_slots_used = 0
+
+        # Clear processed data
+        self.processed_data = {}
+
+        self.logger().info("✅ Controller state cleaned up")
+
     def get_trading_pair(self, token: str, connector: str) -> str:
         """Get the correct trading pair format for a token on a specific exchange"""
         if connector not in self.config.quote_currency_map:
@@ -346,10 +365,6 @@ class FundingArbitrageController(ControllerBase):
         # Only scan periodically to avoid excessive API calls
         # This respects the framework's synchronization - we only run when executors_update_event is set
         if elapsed < self._scan_interval:
-            self.logger().debug(
-                f"⏳ Skipping scan, only {elapsed:.1f}s elapsed (need {self._scan_interval}s). "
-                "Will wait for next update event.",
-            )
             # Don't process opportunities yet - this prevents creating duplicate executors
             # The framework will call us again when executors are updated
             self.processed_data["opportunities"] = []
@@ -413,7 +428,7 @@ class FundingArbitrageController(ControllerBase):
                     # Check if the trading pair exists on this exchange by trying to get funding info
                     # Note: No has_market method, so we'll catch exceptions when fetching funding
 
-                    self.logger().debug(f"  Fetching funding info for {symbol} on {connector}")
+                    self.logger().info(f"  Fetching funding info for {symbol} on {connector}")
 
                     funding_info = self.market_data_provider.get_funding_info(
                         connector_name=connector,
@@ -436,21 +451,31 @@ class FundingArbitrageController(ControllerBase):
                 self.logger().info(f"  📊 Funding rates collected: {funding_rates}")
                 opportunity = self._find_best_opportunity(token, funding_rates)
                 if opportunity:
+                    # Calculate net spread for display (expected_profit / position_size)
+                    net_spread = opportunity.expected_profit / self.config.position_size_quote
                     self.logger().info(
-                        f"  💡 Best opportunity - Spread: {opportunity.spread:.6%}, "
-                        f"Long: {opportunity.long_exchange} ({opportunity.long_funding_rate:.6%}), "
-                        f"Short: {opportunity.short_exchange} ({opportunity.short_funding_rate:.6%})",
+                        f"  💡 Best opportunity - Raw: {opportunity.spread:.6%} ({opportunity.spread * 100:.4f}%), "
+                        f"Net: {net_spread:.6%} ({net_spread * 100:.4f}%), "
+                        f"Profit: ${opportunity.expected_profit:.4f}",
                     )
-                    if opportunity.spread >= self.config.min_funding_rate_profitability:
+                    self.logger().info(
+                        f"     Long: {opportunity.long_exchange} @ {opportunity.long_funding_rate:.6%} "
+                        f"({opportunity.long_funding_rate * 100:.4f}%), "
+                        f"Short: {opportunity.short_exchange} @ {opportunity.short_funding_rate:.6%} "
+                        f"({opportunity.short_funding_rate * 100:.4f}%)",
+                    )
+                    if net_spread >= self.config.min_funding_rate_profitability:
                         self.logger().info(
-                            f"  🎯 OPPORTUNITY FOUND: {token} spread {opportunity.spread:.6%} >= "
-                            f"threshold {self.config.min_funding_rate_profitability:.6%}",
+                            f"  🎯 OPPORTUNITY FOUND: {token} net spread {net_spread:.6%} ({net_spread * 100:.4f}%) >= "
+                            f"threshold {self.config.min_funding_rate_profitability:.6%} "
+                            f"({self.config.min_funding_rate_profitability * 100:.4f}%)",
                         )
                         opportunities.append(opportunity)
                     else:
                         self.logger().info(
-                            f"  ❌ Spread {opportunity.spread:.6%} < "
-                            f"threshold {self.config.min_funding_rate_profitability:.6%}, skipping",
+                            f"  ❌ Net spread {net_spread:.6%} ({net_spread * 100:.4f}%) < "
+                            f"threshold {self.config.min_funding_rate_profitability:.6%} "
+                            f"({self.config.min_funding_rate_profitability * 100:.4f}%), skipping",
                         )
                 else:
                     self.logger().info(f"  No profitable opportunity found for {token}")
@@ -460,12 +485,69 @@ class FundingArbitrageController(ControllerBase):
         self.logger().info(f"\n📊 SCAN COMPLETE - Found {len(opportunities)} viable opportunities")
         return opportunities
 
+    def _estimate_trading_fees(self, exchange: str, token: str) -> Decimal:
+        """Estimate trading fees for an exchange based on configured order types
+
+        Returns total fee percentage for round-trip (open + close)
+        Accounts for probability of using market orders during reconciliation
+        Fails fast if exchange not configured - no fallbacks
+        """
+        # Get exchange settings from config
+        connector_settings = AllConnectorSettings.get_connector_settings()
+        if exchange not in connector_settings:
+            raise ValueError(
+                f"Exchange {exchange} not configured in connector settings. "
+                f"Cannot estimate fees for unconfigured exchange.",
+            )
+
+        fee_schema = connector_settings[exchange].trade_fee_schema
+        if not fee_schema:
+            raise ValueError(
+                f"No fee schema configured for {exchange}. "
+                f"Cannot trade without fee configuration.",
+            )
+
+        # Get maker and taker fees from schema - fail if not configured
+        if fee_schema.maker_percent_fee_decimal is None:
+            raise ValueError(f"Maker fee not configured for {exchange}")
+        if fee_schema.taker_percent_fee_decimal is None:
+            raise ValueError(f"Taker fee not configured for {exchange}")
+
+        maker_fee = fee_schema.maker_percent_fee_decimal
+        taker_fee = fee_schema.taker_percent_fee_decimal
+
+        # Calculate expected fees based on configured order types
+        # Open orders
+        open_fee = maker_fee if self.config.open_order_type == OrderType.LIMIT else taker_fee
+
+        # Close orders - account for possible escalation to market orders
+        if self.config.close_order_type == OrderType.LIMIT:
+            # Even with limit orders configured, there's a chance we escalate to market
+            # during reconciliation or emergency closes
+            # Estimate 70% limit (maker), 30% market (taker) for closes
+            reconciliation_probability = Decimal("0.3")
+            close_fee = (maker_fee * (1 - reconciliation_probability) +
+                         taker_fee * reconciliation_probability)
+        else:
+            # Market orders configured for close
+            close_fee = taker_fee
+
+        # Round trip = open + close
+        total_fee = open_fee + close_fee
+
+        self.logger().info(
+            f"Fee estimate for {token} on {exchange}: "
+            f"open={open_fee:.5%}, close={close_fee:.5%}, total={total_fee:.5%}",
+        )
+
+        return total_fee
+
     def _find_best_opportunity(self, token: str, funding_rates: dict[str, Decimal]) -> FundingOpportunity | None:
         """Find the best long/short exchange combination for a token"""
         best_opportunity = None
-        best_spread = Decimal(0)
+        best_net_spread = Decimal(0)
 
-        self.logger().debug(f"    Finding best opportunity from rates: {funding_rates}")
+        self.logger().info(f"    Finding best opportunity from rates: {funding_rates}")
 
         exchanges = list(funding_rates.keys())
         for i, long_exchange in enumerate(exchanges):
@@ -473,34 +555,53 @@ class FundingArbitrageController(ControllerBase):
                 if i == j:  # Skip same exchange
                     continue
 
-                # Calculate spread (short funding - long funding)
+                # Calculate raw spread (short funding - long funding)
                 # Positive spread means we receive from short and pay on long
-                spread = funding_rates[short_exchange] - funding_rates[long_exchange]
+                raw_spread = funding_rates[short_exchange] - funding_rates[long_exchange]
 
-                self.logger().debug(
+                # Estimate fees for both legs - skip if fees not configured
+                try:
+                    long_fees = self._estimate_trading_fees(long_exchange, token)
+                    short_fees = self._estimate_trading_fees(short_exchange, token)
+                    total_fees = long_fees + short_fees
+                except ValueError as e:
+                    self.logger().warning(
+                        f"    Cannot estimate fees for {token} {long_exchange}/{short_exchange}: {e}. "
+                        f"Skipping this pair.",
+                    )
+                    continue
+
+                # Calculate net spread after fees
+                net_spread = raw_spread - total_fees
+
+                self.logger().info(
                     f"    Pair: Long {long_exchange} ({funding_rates[long_exchange]:.6%}) / "
-                    f"Short {short_exchange} ({funding_rates[short_exchange]:.6%}) = Spread {spread:.6%}",
+                    f"Short {short_exchange} ({funding_rates[short_exchange]:.6%}) = "
+                    f"Raw spread {raw_spread:.6%} ({raw_spread * 100:.4f}%), "
+                    f"Fees {total_fees:.6%} ({total_fees * 100:.4f}%), "
+                    f"Net {net_spread:.6%} ({net_spread * 100:.4f}%)",
                 )
 
-                if spread > best_spread:
-                    best_spread = spread
+                if net_spread > best_net_spread:
+                    best_net_spread = net_spread
                     current_time = self.market_data_provider.time()
-                    tier = self._classify_opportunity_tier(spread)
+                    tier = self._classify_opportunity_tier(net_spread)  # Tier based on net spread
                     best_opportunity = FundingOpportunity(
                         token=token,
                         long_exchange=long_exchange,
                         short_exchange=short_exchange,
                         long_funding_rate=funding_rates[long_exchange],
                         short_funding_rate=funding_rates[short_exchange],
-                        spread=spread,
-                        expected_profit=spread * self.config.position_size_quote,
+                        spread=raw_spread,  # Keep raw spread for display
+                        expected_profit=net_spread * self.config.position_size_quote,  # Net profit after fees
                         required_capital=self.config.position_size_quote * 2,  # Capital for both legs
                         discovered_at=current_time,
                         last_updated=current_time,
                         tier=tier,
                     )
-                    self.logger().debug(
-                        f"    New best opportunity: spread={spread:.6%}, "
+                    self.logger().info(
+                        f"    New best opportunity: net_spread={net_spread:.6%} ({net_spread * 100:.4f}%), "
+                        f"expected_profit={net_spread * self.config.position_size_quote:.4f} quote, "
                         f"tier={tier.name if tier else 'None'}",
                     )
 
@@ -563,7 +664,7 @@ class FundingArbitrageController(ControllerBase):
         for opp in opportunities:
             age_seconds = opp.age_seconds(current_time)
             if age_seconds > max_age:
-                self.logger().debug(
+                self.logger().info(
                     f"Removing stale opportunity {opp.opportunity_id}: "
                     f"Age {age_seconds:.0f}s > {max_age}s",
                 )

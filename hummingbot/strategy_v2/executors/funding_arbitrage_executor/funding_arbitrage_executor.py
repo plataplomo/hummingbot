@@ -73,6 +73,7 @@ class FundingArbitrageExecutor(ExecutorBase):
 
         # Shutdown escalation flags
         self._market_close_attempted = False
+        self._market_close_time: float | None = None  # Track when we escalated to market orders
 
         # PnL tracking
         self._funding_payments_received: Decimal = Decimal(0)
@@ -345,6 +346,16 @@ class FundingArbitrageExecutor(ExecutorBase):
                 long_closed = not self._is_position_filled("long") or self._get_position_amount("long") == 0
                 short_closed = not self._is_position_filled("short") or self._get_position_amount("short") == 0
 
+                # Log current position status for debugging
+                if not long_closed or not short_closed:
+                    self.logger().info(
+                        f"Position status for {self.config.token}: "
+                        f"Long filled={self._is_position_filled('long')}, "
+                        f"amount={self._get_position_amount('long')}, "
+                        f"Short filled={self._is_position_filled('short')}, "
+                        f"amount={self._get_position_amount('short')}",
+                    )
+
                 if long_closed and short_closed:
                     # Both positions closed successfully
                     self.logger().info(f"All positions closed for {self.config.token}")
@@ -360,39 +371,57 @@ class FundingArbitrageExecutor(ExecutorBase):
                 escalation_timeout = self.config.max_unhedged_exposure_time
                 final_timeout = escalation_timeout * 2  # Double the max for final give-up
 
-                if elapsed_time > warning_timeout and elapsed_time < escalation_timeout:
-                    # First escalation - try market orders
-                    if not self._market_close_attempted:
+                # Check if we should escalate to market orders
+                if not self._market_close_attempted and elapsed_time > warning_timeout:
+                    # Determine if escalation is needed
+                    should_escalate = False
+
+                    if (self._long_close_order and not long_closed and
+                            not self.is_order_filled(self._long_close_order)):
+                        self.logger().warning(
+                            f"Long close order not filled after {warning_timeout}s, "
+                            "escalating to MARKET",
+                        )
+                        should_escalate = True
+
+                    if (self._short_close_order and not short_closed and
+                            not self.is_order_filled(self._short_close_order)):
+                        self.logger().warning(
+                            f"Short close order not filled after {warning_timeout}s, "
+                            "escalating to MARKET",
+                        )
+                        should_escalate = True
+
+                    if should_escalate and self.config.emergency_use_market_orders:
+                        # Mark that we've attempted market orders
                         self._market_close_attempted = True
+                        self._market_close_time = current_time
 
-                        should_escalate = False
-
-                        if (self._long_close_order and not long_closed and
-                                not self.is_order_filled(self._long_close_order)):
-                            self.logger().warning(
-                                f"Long close order not filled after {warning_timeout}s, "
-                                "escalating to MARKET",
-                            )
-                            should_escalate = True
-
-                        if (self._short_close_order and not short_closed and
-                                not self.is_order_filled(self._short_close_order)):
-                            self.logger().warning(
-                                f"Short close order not filled after {warning_timeout}s, "
-                                "escalating to MARKET",
-                            )
-                            should_escalate = True
-
-                        if should_escalate and self.config.emergency_use_market_orders:
-                            # Cancel pending limit orders and place market orders
-                            await self.cancel_close_orders()
-                            # Use emergency market orders
-                            await self.close_all_positions(close_type=CloseType.STOP_LOSS)
+                        # Cancel pending limit orders and place market orders
+                        await self.cancel_close_orders()
+                        # Use emergency market orders
+                        await self.close_all_positions(close_type=CloseType.STOP_LOSS)
+                        # CRITICAL: Reset the close timer to give market orders time to fill
+                        self._close_orders_start_time = current_time
+                        self.logger().info(
+                            f"Escalated to market orders for {self.config.token}, reset timer",
+                        )
+                        return  # Wait for next control cycle to check market order status
 
                 elif elapsed_time > final_timeout:
-                    # Final give-up after double the max exposure time
+                    # Check if we should give up based on market order timing
+                    # If we escalated to market orders, check time since escalation
+                    if self._market_close_time:
+                        market_elapsed = current_time - self._market_close_time
+                        # Give market orders at least the warning_timeout duration to fill
+                        if market_elapsed < warning_timeout:
+                            # Market orders still have time, don't give up yet
+                            return
+
+                    # Final give-up - positions still not closed
                     self.logger().error(
                         f"Failed to close positions after {elapsed_time:.1f}s for {self.config.token}. "
+                        f"Market orders attempted: {self._market_close_attempted}. "
                         f"Marking as terminated. Manual intervention may be required.",
                     )
                     # Cancel any pending orders and terminate
@@ -431,7 +460,7 @@ class FundingArbitrageExecutor(ExecutorBase):
             tick_size = connector.get_order_price_quantum(trading_pair, mid_price)
             spread_in_ticks = spread / tick_size if tick_size > 0 else Decimal(1000)
 
-            self.logger().debug(
+            self.logger().info(
                 f"Market precision for {trading_pair}: tick_size={tick_size}, "
                 f"spread={spread:.6f} ({spread_in_ticks:.1f} ticks)",
             )
@@ -463,7 +492,7 @@ class FundingArbitrageExecutor(ExecutorBase):
         spread = ask - bid
         spread_pct = spread / bid * Decimal(100)
 
-        self.logger().debug(
+        self.logger().info(
             f"Order book for {trading_pair}: bid={bid}, ask={ask}, spread={spread:.4f} ({spread_pct:.3f}%)",
         )
         return bid, ask, spread, spread_pct
@@ -1221,7 +1250,7 @@ class FundingArbitrageExecutor(ExecutorBase):
                 in_flight_order = self.get_in_flight_order(connector_name, tracked_order.order_id)
             except Exception as e:
                 # Order might not be from this connector
-                self.logger().debug(f"Order {tracked_order.order_id} not found in {connector_name}: {e}")
+                self.logger().info(f"Order {tracked_order.order_id} not found in {connector_name}: {e}")
 
             if in_flight_order:
                 return in_flight_order.is_filled
@@ -1274,7 +1303,7 @@ class FundingArbitrageExecutor(ExecutorBase):
             try:
                 current_price = self.get_price(connector_name, trading_pair, PriceType.MidPrice)
             except Exception as e:
-                self.logger().debug(f"Failed to get current price for {trading_pair}: {e}")
+                self.logger().info(f"Failed to get current price for {trading_pair}: {e}")
                 return Decimal(0)
 
             # Calculate PnL based on position side
@@ -1435,7 +1464,7 @@ class FundingArbitrageExecutor(ExecutorBase):
             )
             return fee.percent
         except Exception as e:
-            self.logger().debug(f"Failed to get fee from connector: {e}, checking configuration")
+            self.logger().info(f"Failed to get fee from connector: {e}, checking configuration")
 
             # Get from configured fee schema (not a fallback - this is actual config)
             connector_settings = AllConnectorSettings.get_connector_settings()
@@ -1719,7 +1748,7 @@ class FundingArbitrageExecutor(ExecutorBase):
     def on_stop(self):
         """
         Called when the executor is stopped.
-        Logs final state information.
+        Logs final state information and cleans up resources.
         Required by V2 architecture.
         """
         # Log final state with error handling
@@ -1738,3 +1767,14 @@ class FundingArbitrageExecutor(ExecutorBase):
                 f"Close type: {self.close_type.name if self.close_type else 'NONE'} | "
                 f"PnL calculation error: {e!s}",
             )
+
+        # Reset executor state
+        self._long_order = None
+        self._short_order = None
+        self._long_close_order = None
+        self._short_close_order = None
+        self._reconciliation_state = ReconciliationState()
+        self._exposure_start_time = None
+        self._entry_start_time = None
+        self._close_orders_start_time = None
+        self._market_close_time = None
