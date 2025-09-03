@@ -6,10 +6,11 @@ from pydantic import ConfigDict, Field, SecretStr, field_validator
 from hummingbot.client.config.config_data_types import BaseConnectorConfigMap
 from hummingbot.core.data_type.trade_fee import TradeFeeSchema
 
-# Maker rebates(-0.02%) are paid out continuously on each trade directly to the trading wallet.(https://hyperliquid.gitbook.io/hyperliquid-docs/trading/fees)
+# Base tier fees for Hyperliquid Spot (https://hyperliquid.gitbook.io/hyperliquid-docs/trading/fees)
+# Higher volume tiers and maker rebates available but using base rates as default
 DEFAULT_FEES = TradeFeeSchema(
-    maker_percent_fee_decimal=Decimal("0"),
-    taker_percent_fee_decimal=Decimal("0.00025"),
+    maker_percent_fee_decimal=Decimal("0.0004"),  # 0.040% maker fee (base tier)
+    taker_percent_fee_decimal=Decimal("0.0007"),  # 0.070% taker fee (base tier)
     buy_percent_fee_deducted_from_returns=True
 )
 
@@ -75,7 +76,7 @@ KEYS = HyperliquidConfigMap.model_construct()
 OTHER_DOMAINS = ["hyperliquid_testnet"]
 OTHER_DOMAINS_PARAMETER = {"hyperliquid_testnet": "hyperliquid_testnet"}
 OTHER_DOMAINS_EXAMPLE_PAIR = {"hyperliquid_testnet": "HYPE-USD"}
-OTHER_DOMAINS_DEFAULT_FEES = {"hyperliquid_testnet": [0, 0.025]}
+OTHER_DOMAINS_DEFAULT_FEES = {"hyperliquid_testnet": [0.040, 0.070]}  # [maker_fee_pct, taker_fee_pct]
 
 
 class HyperliquidTestnetConfigMap(BaseConnectorConfigMap):
