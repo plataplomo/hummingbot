@@ -8,6 +8,7 @@
 .ruff_cache/
 .pytest_cache/
 
+workflow/
 
 # Local conda installation
 .conda/

@@ -162,10 +162,10 @@ class FundingArbitrageControllerConfig(ControllerConfigBase):
             "prompt_on_new": True,
         },
     )
-    opportunity_refresh_interval: int = Field(
-        default=60,
+    opportunity_refresh_interval_minutes: float = Field(
+        default=1.0,
         json_schema_extra={
-            "prompt": "How often to refresh opportunity data in seconds: ",
+            "prompt": "How often to refresh opportunity data in minutes: ",
             "prompt_on_new": True,
         },
     )
@@ -176,10 +176,10 @@ class FundingArbitrageControllerConfig(ControllerConfigBase):
             "prompt_on_new": True,
         },
     )
-    min_position_age_before_replace_minutes: float = Field(
-        default=5.0,
+    min_position_age_before_replace_hours: float = Field(
+        default=0.5,
         json_schema_extra={
-            "prompt": "Minimum position age in minutes before considering replacement (e.g. 5.0 for 5 minutes): ",
+            "prompt": "Minimum position age in hours before considering replacement (e.g. 0.5 for 30 minutes): ",
             "prompt_on_new": True,
         },
     )
@@ -326,7 +326,7 @@ class FundingArbitrageController(ControllerBase):
         self._opportunity_history: dict[str, FundingOpportunity] = {}  # Track all discovered opportunities
         self._allocated_capital: Decimal = Decimal(0)
         self._last_scan_time: float = 0
-        self._scan_interval: float = config.opportunity_refresh_interval
+        self._scan_interval: float = config.opportunity_refresh_interval_minutes * 60  # Convert minutes to seconds
         self._premium_slots_used: int = 0  # Track premium tier slot usage
 
     def on_stop(self):
@@ -846,7 +846,7 @@ class FundingArbitrageController(ControllerBase):
             # Find worst performing executor that has been running long enough to evaluate
             # Don't close positions that just started (give them time to develop)
             current_time = self.market_data_provider.time()
-            min_position_age_seconds = self.config.min_position_age_before_replace_minutes * 60
+            min_position_age_seconds = self.config.min_position_age_before_replace_hours * 3600  # Convert hours to seconds
 
             worst_executor = None
             worst_performance = best_new_profit  # Only close if new opportunity is better

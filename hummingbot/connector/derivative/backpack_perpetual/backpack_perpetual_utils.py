@@ -378,7 +378,10 @@ def get_trading_pair_from_symbol(symbol: str) -> str | None:
 def get_next_funding_timestamp(current_timestamp: float | None = None) -> int:
     """Calculate the next funding timestamp.
 
-    Backpack perpetuals have funding every 8 hours at 00:00, 08:00, and 16:00 UTC.
+    Backpack perpetuals have funding every hour (changed from 8 hours on August 20, 2024).
+    Funding occurs at the start of each hour (00:00, 01:00, 02:00, ... 23:00 UTC).
+
+    Reference: https://learn.backpack.exchange/articles/hourly-funding-and-real-time-yield
 
     Args:
         current_timestamp: Current timestamp in seconds (optional)
@@ -389,11 +392,12 @@ def get_next_funding_timestamp(current_timestamp: float | None = None) -> int:
     if current_timestamp is None:
         current_timestamp = time.time()
 
-    # Funding every 8 hours
-    funding_interval = 8 * 60 * 60  # 8 hours in seconds
+    # Funding every 1 hour (changed from 8 hours on August 20, 2024)
+    # Source: https://learn.backpack.exchange/articles/hourly-funding-and-real-time-yield
+    funding_interval = 1 * 60 * 60  # 1 hour in seconds
 
     # Calculate next funding time
-    # Funding times are at 00:00, 08:00, 16:00 UTC
+    # Funding times are at every hour (00:00, 01:00, 02:00, ... 23:00 UTC)
     next_funding = ((int(current_timestamp) // funding_interval) + 1) * funding_interval
 
     return next_funding

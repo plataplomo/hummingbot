@@ -218,7 +218,8 @@ HEARTBEAT_TIME_INTERVAL = 30.0  # WebSocket heartbeat interval in seconds
 #   - maxLeverage: Maximum leverage allowed per market
 #   - initialMarginRatio: Initial margin requirement
 #   - maintenanceMarginRatio: Maintenance margin requirement
-#   - fundingInterval: Funding rate interval (typically 8 hours but verify from API)
+#   - fundingInterval: Funding rate interval (changed to 1 hour on August 20, 2024)
+#                      Source: https://learn.backpack.exchange/articles/hourly-funding-and-real-time-yield
 #   - fundingRateLowerBound: Minimum funding rate
 #   - fundingRateUpperBound: Maximum funding rate
 #   - nextFundingTime: Next funding timestamp
