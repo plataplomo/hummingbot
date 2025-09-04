@@ -2,9 +2,11 @@
 Funding Arbitrage Controller - Portfolio-level management for multi-token funding arbitrage
 Manages capital allocation, opportunity ranking, and global risk across multiple funding arbitrage positions
 """
+from collections import Counter
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import Enum
+from operator import itemgetter
 
 from pydantic import Field, field_validator
 
@@ -26,18 +28,29 @@ class OpportunityTier(Enum):
 
 @dataclass
 class FundingOpportunity:
-    """Represents a funding arbitrage opportunity"""
+    """Represents a funding arbitrage opportunity with full profitability metrics"""
     token: str
     long_exchange: str
     short_exchange: str
     long_funding_rate: Decimal
     short_funding_rate: Decimal
-    spread: Decimal
-    expected_profit: Decimal
+    spread: Decimal  # Raw spread per funding interval
+    expected_profit: Decimal  # Expected profit at max holding time
     required_capital: Decimal
     discovered_at: float = 0  # Timestamp when opportunity was first discovered
     last_updated: float = 0   # Last time this opportunity was refreshed
     tier: OpportunityTier | None = None  # Quality tier
+
+    # Time-aware profitability metrics (from research)
+    breakeven_hours: Decimal = Decimal(0)  # Hours needed to recover fees
+    profit_min_hold: Decimal = Decimal(0)  # Profit at min holding time
+    profit_max_hold: Decimal = Decimal(0)  # Profit at max holding time
+    effective_apr: Decimal = Decimal(0)  # Annualized return based on expected hold
+
+    # Exchange-specific funding intervals for transparency
+    funding_interval_long: float  # Hours between payments on long exchange - from config
+    funding_interval_short: float  # Hours between payments on short exchange - from config
+    effective_interval: float  # Min of both intervals (conservative)
 
     @property
     def opportunity_id(self) -> str:
@@ -51,21 +64,104 @@ class FundingOpportunity:
         """How long since this opportunity was last updated"""
         return current_time - self.last_updated if self.last_updated else 0
 
-    def priority_score(self, current_time: float) -> Decimal:
+    def _calculate_interval_efficiency_multiplier(
+        self,
+        best_interval: float,
+        worst_interval: float,
+        max_multiplier: Decimal,
+        min_multiplier: Decimal,
+    ) -> Decimal:
+        """
+        Calculate efficiency multiplier based on cash flow synchronization.
+
+        Mathematical insight: The key is not how often you get paid, but how long
+        your capital is locked in underwater positions (paying without receiving).
+
+        Best case: Synchronized intervals (1hr-1hr or 8hr-8hr) - immediate netting
+        Worst case: Maximum asymmetry (1hr-8hr) - long underwater periods
+
+        Args:
+            best_interval: Shortest interval from all configured exchanges
+            worst_interval: Longest interval from all configured exchanges
+            max_multiplier: Best case multiplier (synchronized_pairing_multiplier)
+            min_multiplier: Worst case multiplier (asymmetric_pairing_multiplier)
+
+        Returns:
+            Decimal: Multiplier based on cash flow efficiency
+        """
+        if best_interval == worst_interval:
+            # All exchanges have same interval, everything is synchronized
+            return max_multiplier
+
+        # Calculate cash flow synchronization score
+        # Perfect sync = 1.0, maximum asymmetry = 0.0
+
+        long_interval = self.funding_interval_long
+        short_interval = self.funding_interval_short
+
+        if long_interval == short_interval:
+            # Perfect synchronization (1hr-1hr or 8hr-8hr)
+            sync_score = Decimal("1.0")
+        else:
+            # Asymmetric - calculate underwater ratio
+            # How many periods do we pay before receiving?
+            max_interval = max(long_interval, short_interval)
+            min_interval = min(long_interval, short_interval)
+
+            # Underwater ratio: what fraction of time are we net negative?
+            # For 1hr-8hr: we're underwater 7/8 of the time
+            underwater_ratio = (max_interval - min_interval) / max_interval
+
+            # Sync score: inverse of underwater ratio
+            sync_score = Decimal("1.0") - Decimal(str(underwater_ratio))
+
+        # Also consider capital velocity (how fast capital turns over)
+        # Faster is better, but only if synchronized
+        velocity_score = Decimal(str(best_interval / self.effective_interval))
+
+        # Combined score: both sync AND velocity matter
+        # Using geometric mean - both factors must be good
+        combined_score = (sync_score * velocity_score) ** Decimal("0.5")
+
+        # Map to configured multiplier range
+        return min_multiplier + (max_multiplier - min_multiplier) * combined_score
+
+    def priority_score(self, current_time: float, config: "FundingArbitrageControllerConfig") -> Decimal:
         """Calculate priority score for opportunity ranking"""
         # Base score is the spread
-        score = self.spread
+        base_score = self.spread
+        score = base_score
 
-        # Premium tier gets 3x multiplier, standard 1.5x
+        # Apply tier-based score multipliers from config
+        tier_multiplier = Decimal("1.0")
         if self.tier == OpportunityTier.PREMIUM:
-            score *= Decimal(3)
+            tier_multiplier = config.premium_tier_score_multiplier
+            score *= tier_multiplier
         elif self.tier == OpportunityTier.STANDARD:
-            score *= Decimal("1.5")
+            tier_multiplier = config.standard_tier_score_multiplier
+            score *= tier_multiplier
 
-        # Decay score based on age (reduce by 10% per hour)
+        # Apply funding interval efficiency multiplier
+        if not config.funding_intervals_hours:
+            raise ValueError("No funding intervals configured")
+
+        all_intervals = list(config.funding_intervals_hours.values())
+        best_interval = min(all_intervals)  # Shortest = most efficient
+        worst_interval = max(all_intervals)  # Longest = least efficient
+
+        interval_multiplier = self._calculate_interval_efficiency_multiplier(
+            best_interval=best_interval,
+            worst_interval=worst_interval,
+            max_multiplier=config.same_interval_pairing_multiplier,
+            min_multiplier=config.mixed_interval_pairing_multiplier,
+        )
+        score *= interval_multiplier
+
+        # Decay score based on age using configured parameters
         age_seconds = self.age_seconds(current_time)
         age_hours = Decimal(str(age_seconds / 3600))
-        decay_factor = max(Decimal("0.5"), Decimal(1) - (age_hours * Decimal("0.1")))
+        decay_factor = max(config.min_score_decay_factor,
+                           Decimal(1) - (age_hours * config.opportunity_score_decay_per_hour))
         score *= decay_factor
 
         return score
@@ -206,6 +302,15 @@ class FundingArbitrageControllerConfig(ControllerConfigBase):
             "prompt_on_new": True,
         },
     )
+    min_holding_hours: int = Field(
+        default=24,
+        json_schema_extra={
+            "prompt": "Minimum position hold time in hours before exit: ",
+            "prompt_on_new": True,
+        },
+    )
+
+    # No hardcoded normalization standard - we calculate it from the actual exchange configs
 
     # Reconciliation safety
     enable_reconciliation: bool = Field(default=True)
@@ -268,12 +373,103 @@ class FundingArbitrageControllerConfig(ControllerConfigBase):
         },
     )
 
+    # Funding interval configuration (hours between funding payments)
+    funding_intervals_hours: dict[str, float] = Field(
+        default={},
+        json_schema_extra={
+            "prompt": "Funding intervals for each exchange in hours (e.g. {'binance_perpetual': 8}): ",
+            "prompt_on_new": False,
+        },
+    )
+
     # Leverage
     leverage: int = Field(
         default=10,
         json_schema_extra={
             "prompt": "Leverage to use: ",
             "prompt_on_new": True,
+        },
+    )
+
+    # Opportunity scoring configuration
+    premium_tier_score_multiplier: Decimal = Field(
+        default=Decimal(3),
+        json_schema_extra={
+            "prompt": "Score multiplier for premium tier opportunities (e.g. 3 for 3x): ",
+            "prompt_on_new": False,
+        },
+    )
+    standard_tier_score_multiplier: Decimal = Field(
+        default=Decimal("1.5"),
+        json_schema_extra={
+            "prompt": "Score multiplier for standard tier opportunities (e.g. 1.5 for 1.5x): ",
+            "prompt_on_new": False,
+        },
+    )
+    opportunity_score_decay_per_hour: Decimal = Field(
+        default=Decimal("0.1"),
+        json_schema_extra={
+            "prompt": "Opportunity score decay per hour (e.g. 0.1 for 10% decay): ",
+            "prompt_on_new": False,
+        },
+    )
+    min_score_decay_factor: Decimal = Field(
+        default=Decimal("0.5"),
+        json_schema_extra={
+            "prompt": "Minimum score decay factor (score won't decay below this): ",
+            "prompt_on_new": False,
+        },
+    )
+
+    # Exchange pairing preference multipliers for funding interval combinations
+    # These multiply the opportunity score based on how favorable the exchange pairing is
+    same_interval_pairing_multiplier: Decimal = Field(
+        default=Decimal("1.2"),
+        json_schema_extra={
+            "prompt": "Score multiplier when both exchanges have same funding interval (e.g. 1hr-1hr): ",
+            "prompt_on_new": False,
+        },
+    )
+    mixed_interval_pairing_multiplier: Decimal = Field(
+        default=Decimal("1.1"),
+        json_schema_extra={
+            "prompt": "Score multiplier for mixed funding intervals (e.g. 1hr-8hr): ",
+            "prompt_on_new": False,
+        },
+    )
+    # Note: baseline (1.0x) is for less favorable pairings like 8hr-8hr
+
+    # Fee estimation configuration
+    reconciliation_market_order_probability: Decimal = Field(
+        default=Decimal("0.3"),
+        json_schema_extra={
+            "prompt": "Probability of needing market orders during reconciliation (0-1): ",
+            "prompt_on_new": False,
+        },
+    )
+
+    # Position sizing configuration
+    min_position_size_buffer_percent: Decimal = Field(
+        default=Decimal("0.01"),
+        json_schema_extra={
+            "prompt": "Buffer above minimum position size (e.g. 0.01 for 1%): ",
+            "prompt_on_new": False,
+        },
+    )
+    legs_per_arbitrage_position: int = Field(
+        default=2,
+        json_schema_extra={
+            "prompt": "Number of legs per arbitrage position (2 for long/short pair): ",
+            "prompt_on_new": False,
+        },
+    )
+
+    # Display configuration
+    old_opportunity_threshold_minutes: int = Field(
+        default=30,
+        json_schema_extra={
+            "prompt": "Minutes before opportunity is considered old in display: ",
+            "prompt_on_new": False,
         },
     )
 
@@ -347,6 +543,135 @@ class FundingArbitrageController(ControllerBase):
 
         self.logger().info("✅ Controller state cleaned up")
 
+    # ============================================
+    # Funding Interval & Time Calculation Helpers
+    # ============================================
+
+    def get_funding_interval(self, exchange: str) -> float:
+        """Get funding interval in hours for an exchange
+
+        Fails fast if exchange not configured - no fallbacks.
+        """
+        if exchange not in self.config.funding_intervals_hours:
+            raise ValueError(
+                f"Funding interval not configured for exchange {exchange}. "
+                f"Please add it to funding_intervals_hours in config. "
+                f"Available exchanges: {list(self.config.funding_intervals_hours.keys())}",
+            )
+        return self.config.funding_intervals_hours[exchange]
+
+    def get_normalization_standard(self) -> float:
+        """Calculate the most common funding interval from configured exchanges.
+
+        This is the 'industry standard' based on what exchanges we're actually using.
+        """
+        if not self.config.funding_intervals_hours:
+            raise ValueError("No funding intervals configured. Cannot determine standard.")
+
+        # Count frequency of each interval
+        intervals = list(self.config.funding_intervals_hours.values())
+        interval_counts = Counter(intervals)
+
+        # Return the most common interval
+        most_common_interval, _ = interval_counts.most_common(1)[0]
+        return most_common_interval
+
+    def normalize_funding_rate(self, rate: Decimal, exchange: str) -> Decimal:
+        """Normalize funding rate to industry standard for fair comparison
+
+        This allows comparing rates from exchanges with different funding intervals.
+        The standard is dynamically determined from configured exchanges.
+        """
+        interval = self.get_funding_interval(exchange)
+        standard = self.get_normalization_standard()
+        if interval == standard:
+            return rate
+        # Convert to standard interval equivalent
+        return rate * Decimal(standard / interval)
+
+    def calculate_break_even_hours(
+        self,
+        spread_per_interval: Decimal,
+        interval_hours: float,
+        total_fees: Decimal,
+    ) -> float:
+        """Calculate hours needed to break even on trading fees
+
+        Args:
+            spread_per_interval: Funding rate spread per payment interval
+            interval_hours: Hours between funding payments
+            total_fees: Total trading fees as decimal (e.g., 0.0085 for 0.85%)
+
+        Returns:
+            Hours needed to break even, or inf if spread is non-positive
+        """
+        if spread_per_interval <= 0:
+            return float("inf")
+
+        # How many funding payments needed to cover fees?
+        intervals_needed = float(total_fees / spread_per_interval)
+
+        # Convert to hours
+        return intervals_needed * interval_hours
+
+    def calculate_profit_at_time(
+        self,
+        spread_per_interval: Decimal,
+        interval_hours: float,
+        total_fees: Decimal,
+        holding_hours: float,
+    ) -> Decimal:
+        """Calculate expected profit after holding position for specified hours
+
+        Args:
+            spread_per_interval: Funding rate spread per payment interval
+            interval_hours: Hours between funding payments
+            total_fees: Total trading fees as decimal
+            holding_hours: How long position will be held
+
+        Returns:
+            Expected net profit as decimal (can be negative if fees not recovered)
+        """
+        # How many funding payments will we receive?
+        num_payments = Decimal(holding_hours / interval_hours)
+
+        # Total funding income
+        total_income = spread_per_interval * num_payments
+
+        # Net profit after fees
+        return total_income - total_fees
+
+    def calculate_effective_apr(
+        self,
+        profit: Decimal,
+        holding_hours: float,
+        capital_deployed: Decimal,
+    ) -> Decimal:
+        """Calculate annualized percentage return for an opportunity
+
+        Args:
+            profit: Expected profit in quote currency
+            holding_hours: Expected holding period in hours
+            capital_deployed: Total capital required (both legs)
+
+        Returns:
+            APR as percentage (e.g., 50 for 50% APR)
+        """
+        if capital_deployed <= 0 or holding_hours <= 0:
+            return Decimal(0)
+
+        # Calculate return on capital
+        return_on_capital = profit / capital_deployed
+
+        # Annualize based on holding period
+        hours_per_year = Decimal(365 * 24)
+        annualization_factor = hours_per_year / Decimal(str(holding_hours))
+
+        # Convert to percentage
+        apr = return_on_capital * annualization_factor * Decimal(100)
+
+        return apr
+
     def get_trading_pair(self, token: str, connector: str) -> str:
         """Get the correct trading pair format for a token on a specific exchange"""
         if connector not in self.config.quote_currency_map:
@@ -386,11 +711,28 @@ class FundingArbitrageController(ControllerBase):
 
         # Rank opportunities by priority score (considers tier and age)
         current_time = self.market_data_provider.time()
-        ranked_opportunities = sorted(
-            opportunities,
-            key=lambda x: x.priority_score(current_time),
-            reverse=True,
-        )
+
+        # Calculate scores and log details
+        scored_opportunities = []
+        for opp in opportunities:
+            score = opp.priority_score(current_time, self.config)
+            scored_opportunities.append((opp, score))
+
+            # Log scoring breakdown for each opportunity
+            interval_desc = f"{opp.funding_interval_long}hr-{opp.funding_interval_short}hr"
+            sync_type = "sync" if opp.funding_interval_long == opp.funding_interval_short else "async"
+
+            self.logger().debug(
+                f"  📊 Scoring {opp.token} {opp.long_exchange}/{opp.short_exchange}: "
+                f"spread={opp.spread:.4%}, "
+                f"tier={opp.tier.name if opp.tier else 'None'}, "
+                f"intervals={interval_desc}({sync_type}), "
+                f"age={opp.age_seconds(current_time) / 3600:.1f}hr, "
+                f"score={score:.4f}",
+            )
+
+        # Sort by score
+        ranked_opportunities = [opp for opp, _ in sorted(scored_opportunities, key=itemgetter(1), reverse=True)]
 
         # Store processed opportunities with tier information
         self.processed_data["opportunities"] = ranked_opportunities
@@ -451,32 +793,19 @@ class FundingArbitrageController(ControllerBase):
                 self.logger().info(f"  📊 Funding rates collected: {funding_rates}")
                 opportunity = self._find_best_opportunity(token, funding_rates)
                 if opportunity:
-                    # Calculate net spread for display (expected_profit / position_size)
-                    net_spread = opportunity.expected_profit / self.config.position_size_quote
+                    # Opportunity already passed min_funding_rate_profitability check in _find_best_opportunity
                     self.logger().info(
-                        f"  💡 Best opportunity - Raw: {opportunity.spread:.6%} ({opportunity.spread * 100:.4f}%), "
-                        f"Net: {net_spread:.6%} ({net_spread * 100:.4f}%), "
-                        f"Profit: ${opportunity.expected_profit:.4f}",
+                        f"  🎯 OPPORTUNITY FOUND: {token} "
+                        f"Spread: {opportunity.spread:.6%}, "
+                        f"APR: {opportunity.effective_apr:.1f}%, "
+                        f"Break-even: {opportunity.breakeven_hours:.1f}hr",
                     )
                     self.logger().info(
-                        f"     Long: {opportunity.long_exchange} @ {opportunity.long_funding_rate:.6%} "
-                        f"({opportunity.long_funding_rate * 100:.4f}%), "
-                        f"Short: {opportunity.short_exchange} @ {opportunity.short_funding_rate:.6%} "
-                        f"({opportunity.short_funding_rate * 100:.4f}%)",
+                        f"     Long: {opportunity.long_exchange} @ {opportunity.long_funding_rate:.6%}, "
+                        f"Short: {opportunity.short_exchange} @ {opportunity.short_funding_rate:.6%}, "
+                        f"Expected Profit: ${opportunity.expected_profit:.4f}",
                     )
-                    if net_spread >= self.config.min_funding_rate_profitability:
-                        self.logger().info(
-                            f"  🎯 OPPORTUNITY FOUND: {token} net spread {net_spread:.6%} ({net_spread * 100:.4f}%) >= "
-                            f"threshold {self.config.min_funding_rate_profitability:.6%} "
-                            f"({self.config.min_funding_rate_profitability * 100:.4f}%)",
-                        )
-                        opportunities.append(opportunity)
-                    else:
-                        self.logger().info(
-                            f"  ❌ Net spread {net_spread:.6%} ({net_spread * 100:.4f}%) < "
-                            f"threshold {self.config.min_funding_rate_profitability:.6%} "
-                            f"({self.config.min_funding_rate_profitability * 100:.4f}%), skipping",
-                        )
+                    opportunities.append(opportunity)
                 else:
                     self.logger().info(f"  No profitable opportunity found for {token}")
             else:
@@ -524,8 +853,8 @@ class FundingArbitrageController(ControllerBase):
         if self.config.close_order_type == OrderType.LIMIT:
             # Even with limit orders configured, there's a chance we escalate to market
             # during reconciliation or emergency closes
-            # Estimate 70% limit (maker), 30% market (taker) for closes
-            reconciliation_probability = Decimal("0.3")
+            # Use configured probability for market orders during reconciliation
+            reconciliation_probability = self.config.reconciliation_market_order_probability
             close_fee = (maker_fee * (1 - reconciliation_probability) +
                          taker_fee * reconciliation_probability)
         else:
@@ -571,38 +900,100 @@ class FundingArbitrageController(ControllerBase):
                     )
                     continue
 
-                # Calculate net spread after fees
-                net_spread = raw_spread - total_fees
+                # CRITICAL FIX: Use time-aware calculations instead of direct subtraction
+                # Determine effective funding interval (use shorter interval for conservative estimate)
+                long_interval = self.get_funding_interval(long_exchange)
+                short_interval = self.get_funding_interval(short_exchange)
+                effective_interval = min(long_interval, short_interval)
 
-                self.logger().info(
-                    f"    Pair: Long {long_exchange} ({funding_rates[long_exchange]:.6%}) / "
-                    f"Short {short_exchange} ({funding_rates[short_exchange]:.6%}) = "
-                    f"Raw spread {raw_spread:.6%} ({raw_spread * 100:.4f}%), "
-                    f"Fees {total_fees:.6%} ({total_fees * 100:.4f}%), "
-                    f"Net {net_spread:.6%} ({net_spread * 100:.4f}%)",
+                # Calculate break-even time
+                break_even_hours = self.calculate_break_even_hours(
+                    raw_spread, effective_interval, total_fees,
                 )
 
-                if net_spread > best_net_spread:
-                    best_net_spread = net_spread
+                # Calculate expected profits at configured time horizons
+                profit_min_hold = self.calculate_profit_at_time(
+                    raw_spread, effective_interval, total_fees, self.config.min_holding_hours,
+                )
+                profit_max_hold = self.calculate_profit_at_time(
+                    raw_spread, effective_interval, total_fees, self.config.position_time_limit_hours,
+                )
+
+                # Normalize spread to configured standard for comparison
+                # Normalize spread to industry standard for comparison
+                normalization_standard = self.get_normalization_standard()
+                normalized_spread = raw_spread * Decimal(normalization_standard / effective_interval)
+
+                self.logger().info(
+                    f"    Pair: Long {long_exchange} ({funding_rates[long_exchange]:.6%}/{long_interval}hr) / "
+                    f"Short {short_exchange} ({funding_rates[short_exchange]:.6%}/{short_interval}hr) = "
+                    f"Raw spread {raw_spread:.6%} per {effective_interval}hr, "
+                    f"Normalized {normalized_spread:.6%} per {normalization_standard}hr, "
+                    f"Fees {total_fees:.6%}, "
+                    f"Break-even {break_even_hours:.1f}hr, "
+                    f"Profit@{self.config.position_time_limit_hours}h {profit_max_hold:.6%}",
+                )
+
+                # Check if normalized spread meets minimum threshold (config-driven entry condition)
+                # This is the SPREAD requirement, not the net profit requirement
+                spread_meets_minimum = normalized_spread >= self.config.min_funding_rate_profitability
+                if spread_meets_minimum and profit_max_hold > best_net_spread:
+                    best_net_spread = profit_max_hold
                     current_time = self.market_data_provider.time()
-                    tier = self._classify_opportunity_tier(net_spread)  # Tier based on net spread
+
+                    # Classify tier based on normalized 8-hour spread for consistency
+                    tier = self._classify_opportunity_tier(normalized_spread)
+
+                    # Calculate capital requirement and expected profit
+                    required_capital = self.config.position_size_quote * self.config.legs_per_arbitrage_position
+                    expected_profit_quote = profit_max_hold * self.config.position_size_quote
+
+                    # Calculate effective APR based on max holding time
+                    effective_apr = self.calculate_effective_apr(
+                        expected_profit_quote,
+                        self.config.position_time_limit_hours,
+                        required_capital,
+                    )
+
                     best_opportunity = FundingOpportunity(
                         token=token,
                         long_exchange=long_exchange,
                         short_exchange=short_exchange,
                         long_funding_rate=funding_rates[long_exchange],
                         short_funding_rate=funding_rates[short_exchange],
-                        spread=raw_spread,  # Keep raw spread for display
-                        expected_profit=net_spread * self.config.position_size_quote,  # Net profit after fees
-                        required_capital=self.config.position_size_quote * 2,  # Capital for both legs
+                        spread=raw_spread,  # Keep raw spread per actual interval
+                        expected_profit=expected_profit_quote,
+                        required_capital=required_capital,
                         discovered_at=current_time,
                         last_updated=current_time,
                         tier=tier,
+                        # Populate new time-aware metrics
+                        breakeven_hours=Decimal(str(break_even_hours)),
+                        profit_min_hold=profit_min_hold * self.config.position_size_quote,
+                        profit_max_hold=profit_max_hold * self.config.position_size_quote,
+                        effective_apr=effective_apr,
+                        # Store funding intervals for transparency
+                        funding_interval_long=long_interval,
+                        funding_interval_short=short_interval,
+                        effective_interval=effective_interval,
                     )
+
+                    # Determine exchange pairing preference
+                    pairing_type = "baseline"
+                    if long_interval == short_interval and long_interval <= 1:
+                        pairing_type = "same_short"  # e.g., 1hr-1hr
+                    elif long_interval != short_interval and min(long_interval, short_interval) <= 1:
+                        pairing_type = "mixed"  # e.g., 1hr-8hr
+
+                    # Log the opportunity with all new metrics
                     self.logger().info(
-                        f"    New best opportunity: net_spread={net_spread:.6%} ({net_spread * 100:.4f}%), "
-                        f"expected_profit={net_spread * self.config.position_size_quote:.4f} quote, "
-                        f"tier={tier.name if tier else 'None'}",
+                        f"    New best opportunity: "
+                        f"APR={effective_apr:.1f}%, "
+                        f"Break-even={break_even_hours:.1f}hr, "
+                        f"Profit@{self.config.min_holding_hours}h={profit_min_hold:.6%}, "
+                        f"Profit@{self.config.position_time_limit_hours}h={profit_max_hold:.6%}, "
+                        f"Tier={tier.name if tier else 'None'}, "
+                        f"Pairing={pairing_type}",
                     )
 
         return best_opportunity
@@ -740,7 +1131,7 @@ class FundingArbitrageController(ControllerBase):
         allocated = Decimal(0)
         for executor_info in self.executors_info:
             if executor_info.status == RunnableStatus.RUNNING:
-                allocated += self.config.position_size_quote * 2  # Both legs
+                allocated += self.config.position_size_quote * self.config.legs_per_arbitrage_position
 
         return self.config.max_total_exposure - allocated
 
@@ -846,7 +1237,8 @@ class FundingArbitrageController(ControllerBase):
             # Find worst performing executor that has been running long enough to evaluate
             # Don't close positions that just started (give them time to develop)
             current_time = self.market_data_provider.time()
-            min_position_age_seconds = self.config.min_position_age_before_replace_hours * 3600  # Convert hours to seconds
+            # Convert hours to seconds
+            min_position_age_seconds = self.config.min_position_age_before_replace_hours * 3600
 
             worst_executor = None
             worst_performance = best_new_profit  # Only close if new opportunity is better
@@ -923,8 +1315,8 @@ class FundingArbitrageController(ControllerBase):
             min_required_from_notional = max(min_long_notional, min_short_notional)
             min_required = max(min_required_from_base, min_required_from_notional)
 
-            # Add a small buffer (1%) to avoid edge cases
-            min_required_with_buffer = min_required * Decimal("1.01")
+            # Add configured buffer to avoid edge cases
+            min_required_with_buffer = min_required * (Decimal(1) + self.config.min_position_size_buffer_percent)
 
             if position_size_quote < min_required_with_buffer:
                 self.logger().info(
@@ -1017,7 +1409,9 @@ class FundingArbitrageController(ControllerBase):
 
         # Portfolio overview
         active_executors = [e for e in self.executors_info if e.status == RunnableStatus.RUNNING]
-        allocated_capital = len(active_executors) * self.config.position_size_quote * 2
+        allocated_capital = (len(active_executors) *
+                             self.config.position_size_quote *
+                             self.config.legs_per_arbitrage_position)
         available_capital = self.config.max_total_exposure - allocated_capital
 
         lines.extend([
@@ -1059,14 +1453,16 @@ class FundingArbitrageController(ControllerBase):
 
                 age_indicator = ""
                 age_seconds = opp.age_seconds(self.market_data_provider.time())
-                if age_seconds > 1800:  # More than 30 minutes old
+                threshold_seconds = self.config.old_opportunity_threshold_minutes * 60
+                if age_seconds > threshold_seconds:
                     age_indicator = f" ⏰({age_seconds / 60:.0f}m old)"
 
-                priority_score = opp.priority_score(self.market_data_provider.time())
+                priority_score = opp.priority_score(self.market_data_provider.time(), self.config)
                 lines.append(
                     f"{i}. {opp.token}: {opp.long_exchange}({long_quote}) long / "
                     f"{opp.short_exchange}({short_quote}) short{tier_indicator} | "
-                    f"Spread: {opp.spread:.4%} | Priority: {priority_score:.4f}{age_indicator}",
+                    f"APR: {opp.effective_apr:.1f}% | Break-even: {opp.breakeven_hours:.1f}hr | "
+                    f"Priority: {priority_score:.1f}{age_indicator}",
                 )
 
         # Premium opportunities specifically
@@ -1075,8 +1471,8 @@ class FundingArbitrageController(ControllerBase):
             lines.append(f"\n💎 Premium Opportunities: {len(premium_opps)} available")
             current_time = self.market_data_provider.time()
             lines.extend([
-                f"  - {opp.token}: {opp.spread:.4%} spread | "
-                f"Age: {opp.age_seconds(current_time) / 60:.1f}m"
+                f"  - {opp.token}: APR {opp.effective_apr:.1f}% | "
+                f"Break-even: {opp.breakeven_hours:.1f}hr | Age: {opp.age_seconds(current_time) / 60:.1f}m"
                 for opp in premium_opps[:3]
             ])
 
