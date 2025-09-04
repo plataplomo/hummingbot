@@ -74,6 +74,9 @@ class FundingArbitrageExecutor(ExecutorBase):
         # Shutdown escalation flags
         self._market_close_attempted = False
         self._market_close_time: float | None = None  # Track when we escalated to market orders
+        self._market_close_attempts: int = 0  # Track number of market order attempts
+        self._last_close_attempt_time: float | None = None  # Track last close attempt for backoff
+        self._close_failure_reason: str | None = None  # Track why close failed for recovery
 
         # PnL tracking
         self._funding_payments_received: Decimal = Decimal(0)
@@ -233,23 +236,27 @@ class FundingArbitrageExecutor(ExecutorBase):
 
     def _is_reconciliation_rate_limited(self, current_time: float) -> bool:
         """Check if we should wait before next reconciliation attempt"""
+        # Use reconciliation_interval from config to control how often we update orders
         return bool(
             self._reconciliation_state.last_attempt_time and
-            current_time - self._reconciliation_state.last_attempt_time < 2.0,
+            current_time - self._reconciliation_state.last_attempt_time < self.config.reconciliation_interval,
         )
 
     async def _progressive_reconciliation(
         self, exposure_duration: float, missing_leg: MissingLeg, current_time: float,
     ):
         """Execute progressive reconciliation strategy"""
-        # Stage 1: Aggressive limit order
+        # Stage 1: Aggressive limit order (15-60s)
+        # Keep updating with more aggressive prices while in this window
         if (exposure_duration > self.config.warning_exposure_time and
-                self._reconciliation_state.stage == "none"):
+                exposure_duration <= self.config.max_unhedged_exposure_time and
+                self._reconciliation_state.stage in ["none", "limit"]):
             await self._execute_limit_reconciliation(exposure_duration, missing_leg, current_time)
 
-        # Stage 2: Market order
+        # Stage 2: Market order (60s+)
         elif (exposure_duration > self.config.max_unhedged_exposure_time and
-                self._reconciliation_state.stage == "limit"):
+                self._reconciliation_state.stage != "market" and
+                self._reconciliation_state.stage != "emergency"):
             await self._execute_market_reconciliation(exposure_duration, missing_leg, current_time)
 
         # Stage 3: Emergency hedge
@@ -325,7 +332,7 @@ class FundingArbitrageExecutor(ExecutorBase):
         self._status = RunnableStatus.SHUTTING_DOWN
 
     async def control_shutdown_process(self):
-        """Handle the shutdown process"""
+        """Handle the shutdown process with robust state recovery"""
         current_time = self._strategy.current_timestamp
 
         # Close positions if needed
@@ -340,21 +347,27 @@ class FundingArbitrageExecutor(ExecutorBase):
                     # Pass the close type to determine order type
                     await self.close_all_positions(close_type=self.close_type)
                     self._close_orders_start_time = current_time
+                    self._last_close_attempt_time = current_time
                     return  # Wait for next control cycle to check status
 
                 # Check if close orders are complete
                 long_closed = not self._is_position_filled("long") or self._get_position_amount("long") == 0
                 short_closed = not self._is_position_filled("short") or self._get_position_amount("short") == 0
 
-                # Log current position status for debugging
+                # Log current position status for debugging (but not every second)
                 if not long_closed or not short_closed:
-                    self.logger().info(
-                        f"Position status for {self.config.token}: "
-                        f"Long filled={self._is_position_filled('long')}, "
-                        f"amount={self._get_position_amount('long')}, "
-                        f"Short filled={self._is_position_filled('short')}, "
-                        f"amount={self._get_position_amount('short')}",
-                    )
+                    # Only log status periodically based on config intervals to reduce spam
+                    # Use warning_exposure_time / 3 as the logging interval
+                    log_interval = max(5, int(self.config.warning_exposure_time / 3))
+                    if int(current_time) % log_interval == 0:
+                        self.logger().info(
+                            f"Position status for {self.config.token}: "
+                            f"Long filled={self._is_position_filled('long')}, "
+                            f"amount={self._get_position_amount('long')}, "
+                            f"Short filled={self._is_position_filled('short')}, "
+                            f"amount={self._get_position_amount('short')}, "
+                            f"Market attempts={self._market_close_attempts}",
+                        )
 
                 if long_closed and short_closed:
                     # Both positions closed successfully
@@ -367,48 +380,103 @@ class FundingArbitrageExecutor(ExecutorBase):
                 elapsed_time = current_time - self._close_orders_start_time
 
                 # Use config-defined timeouts for progressive escalation
+                # Note: Unlike opening positions which have 3 stages (wait, aggressive limit, market),
+                # closing positions only has 2 stages:
+                # Stage 1: 0-60s (max_unhedged_exposure_time) - Let original LIMIT orders work
+                # Stage 2: 60s+ - Escalate to MARKET if emergency_use_market_orders is true
                 warning_timeout = self.config.warning_exposure_time
                 escalation_timeout = self.config.max_unhedged_exposure_time
-                final_timeout = escalation_timeout * 2  # Double the max for final give-up
 
-                # Check if we should escalate to market orders
-                if not self._market_close_attempted and elapsed_time > warning_timeout:
-                    # Determine if escalation is needed
+                # Stage 1: First 'warning_timeout' seconds, let original LIMIT orders work
+                if elapsed_time <= warning_timeout:
+                    # Still in grace period, just log if needed
+                    if int(elapsed_time) % 5 == 0 and elapsed_time > 0:
+                        self.logger().debug(
+                            f"Waiting for close orders to fill: {elapsed_time:.0f}s / {warning_timeout}s"
+                        )
+                    return  # Don't intervene yet
+                # Use config max_unhedged_exposure_time * 3 for final timeout
+                # This gives: warning -> escalate to market -> retry with backoff -> final timeout
+                final_timeout = escalation_timeout * 3
+
+                # Implement progressive close attempts with proper state recovery
+                # Check if we should attempt closing (with exponential backoff)
+                time_since_last_attempt = (
+                    current_time - self._last_close_attempt_time
+                    if self._last_close_attempt_time
+                    else float("inf")
+                )
+
+                # Calculate backoff time based on number of attempts using config intervals
+                # Use warning_exposure_time / 3 as base interval for retries
+                # Cap at max_unhedged_exposure_time from config
+                base_interval = float(self.config.warning_exposure_time) / 3.0
+                backoff_time = min(
+                    base_interval * (2 ** self._market_close_attempts),
+                    float(self.config.max_unhedged_exposure_time),
+                )
+
+                # After escalation_timeout - escalate to MARKET orders
+                if not self._market_close_attempted and elapsed_time > escalation_timeout:
+                    # Now we escalate to market orders - only after max_unhedged_exposure_time
                     should_escalate = False
 
                     if (self._long_close_order and not long_closed and
                             not self.is_order_filled(self._long_close_order)):
                         self.logger().warning(
-                            f"Long close order not filled after {warning_timeout}s, "
-                            "escalating to MARKET",
+                            f"Long close order not filled after {elapsed_time:.1f}s "
+                            f"(threshold: {escalation_timeout}s), escalating to MARKET",
                         )
                         should_escalate = True
 
                     if (self._short_close_order and not short_closed and
                             not self.is_order_filled(self._short_close_order)):
                         self.logger().warning(
-                            f"Short close order not filled after {warning_timeout}s, "
-                            "escalating to MARKET",
+                            f"Short close order not filled after {elapsed_time:.1f}s "
+                            f"(threshold: {escalation_timeout}s), escalating to MARKET",
                         )
                         should_escalate = True
 
                     if should_escalate and self.config.emergency_use_market_orders:
-                        # Mark that we've attempted market orders
-                        self._market_close_attempted = True
-                        self._market_close_time = current_time
+                        await self._attempt_market_close(current_time)
+                        return  # Wait for next control cycle
 
-                        # Cancel pending limit orders and place market orders
-                        await self.cancel_close_orders()
-                        # Use emergency market orders
-                        await self.close_all_positions(close_type=CloseType.STOP_LOSS)
-                        # CRITICAL: Reset the close timer to give market orders time to fill
-                        self._close_orders_start_time = current_time
+                elif self._market_close_attempted and not (long_closed and short_closed):
+                    # Market order was attempted but positions still not closed
+                    # Check if we should retry with exponential backoff
+                    if time_since_last_attempt >= backoff_time:
+                        # Use config values to determine when to give up
+                        # After warning_exposure_time worth of attempts, log errors
+                        # After max_unhedged_exposure_time worth of attempts, terminate
+                        warning_attempts = max(3, int(self.config.warning_exposure_time / base_interval))
+                        max_attempts = max(warning_attempts * 2, int(self.config.max_unhedged_exposure_time / base_interval))
+
+                        if self._market_close_attempts >= warning_attempts:
+                            self.logger().error(
+                                f"Failed to close positions after {self._market_close_attempts} market order attempts. "
+                                f"Last failure: {self._close_failure_reason}. "
+                                f"Manual intervention required for {self.config.token}."
+                            )
+
+                            if self._market_close_attempts >= max_attempts:
+                                await self.cancel_close_orders()
+                                await self.cancel_unfilled_orders()
+                                self._status = RunnableStatus.TERMINATED
+                                return
+
                         self.logger().info(
-                            f"Escalated to market orders for {self.config.token}, reset timer",
+                            f"Retrying market close (attempt {self._market_close_attempts + 1}) "
+                            f"after {backoff_time:.1f}s backoff for {self.config.token}"
                         )
-                        return  # Wait for next control cycle to check market order status
 
-                elif elapsed_time > final_timeout:
+                        # Sync position state before retry
+                        await self._sync_position_state()
+
+                        # Retry market close
+                        await self._attempt_market_close(current_time)
+                        return
+
+                if elapsed_time > final_timeout and not self._market_close_attempted:
                     # Check if we should give up based on market order timing
                     # If we escalated to market orders, check time since escalation
                     if self._market_close_time:
@@ -567,16 +635,39 @@ class FundingArbitrageExecutor(ExecutorBase):
             long_connector = self.connectors[self.config.long_connector_name]
             short_connector = self.connectors[self.config.short_connector_name]
 
-            # Calculate order amounts and prices
-            long_amount, short_amount = self._calculate_entry_amounts(long_connector, short_connector)
-            long_price, short_price = await self._calculate_entry_prices(
-                long_connector, short_connector, long_amount, short_amount,
-            )
+            if self.config.open_order_type == OrderType.LIMIT:
+                # For LIMIT orders, calculate prices first, then amounts
+                long_price, short_price = self._calculate_limit_entry_prices(long_connector, short_connector)
+                long_amount, short_amount = self._calculate_entry_amounts_with_prices(
+                    long_connector, short_connector, long_price, short_price
+                )
+            else:
+                # For MARKET orders, use mid prices for initial amount calculation
+                # then get actual taker prices
+                long_mid = long_connector.get_mid_price(self.config.long_trading_pair)
+                short_mid = short_connector.get_mid_price(self.config.short_trading_pair)
+
+                # Calculate initial amounts using mid prices
+                long_amount, short_amount = self._calculate_entry_amounts_with_prices(
+                    long_connector, short_connector, long_mid, short_mid
+                )
+
+                # Get actual market prices for these amounts
+                long_price = long_connector.get_price_for_volume(
+                    self.config.long_trading_pair, True, long_amount
+                ).result_price
+                short_price = short_connector.get_price_for_volume(
+                    self.config.short_trading_pair, False, short_amount
+                ).result_price
+
+            # Calculate notional values for logging
+            long_value = long_amount * long_price
+            short_value = short_amount * short_price
 
             self.logger().info(
-                f"Placing entry orders for {self.config.token}: "
-                f"Long {long_amount:.6f} @ {long_price:.4f}, "
-                f"Short {short_amount:.6f} @ {short_price:.4f}",
+                f"Placing entry orders for {self.config.token}:\n"
+                f"  Long: {long_amount:.6f} @ {long_price:.4f} = ${long_value:.2f}\n"
+                f"  Short: {short_amount:.6f} @ {short_price:.4f} = ${short_value:.2f}"
             )
 
             # Place orders sequentially following V2 architecture patterns
@@ -592,28 +683,118 @@ class FundingArbitrageExecutor(ExecutorBase):
             # Let the control loop handle partial order scenarios
             raise
 
-    def _calculate_entry_amounts(self, long_connector, short_connector) -> tuple[Decimal, Decimal]:
-        """Calculate entry order amounts based on position size"""
-        long_mid_price = long_connector.get_mid_price(self.config.long_trading_pair)
-        short_mid_price = short_connector.get_mid_price(self.config.short_trading_pair)
+    def _calculate_entry_amounts_with_prices(
+        self, long_connector, short_connector, long_price: Decimal, short_price: Decimal
+    ) -> tuple[Decimal, Decimal]:
+        """Calculate entry order amounts for funding arbitrage
 
-        long_amount = self.config.position_size_quote / long_mid_price
-        short_amount = self.config.position_size_quote / short_mid_price
+        CRITICAL INSIGHT: In funding arbitrage, we need EQUAL position sizes on both legs
+        to maintain a market-neutral hedge. Different sizes = unhedged exposure to price risk!
+
+        Strategy:
+        1. Calculate size ONCE based on average/reference price
+        2. Use SAME size for both legs
+        3. Only adjust for exchange-specific precision requirements
+        """
+        # Calculate position size ONCE using average price as reference
+        # This ensures we get the same base amount for both legs
+        reference_price = (long_price + short_price) / Decimal("2")
+        base_amount_raw = self.config.position_size_quote / reference_price
+
+        self.logger().info(
+            f"Calculating position size for {self.config.token}:\n"
+            f"  Target value: ${self.config.position_size_quote:.2f}\n"
+            f"  Long price: ${long_price:.4f}, Short price: ${short_price:.4f}\n"
+            f"  Reference price: ${reference_price:.4f}\n"
+            f"  Base amount: {base_amount_raw:.8f} {self.config.token}"
+        )
+
+        # Get trading rules to properly quantize amounts
+        long_trading_rules = long_connector.trading_rules[self.config.long_trading_pair]
+        short_trading_rules = short_connector.trading_rules[self.config.short_trading_pair]
+
+        # Quantize SAME base amount to each exchange's step size
+        # Both should get the same amount, just respecting precision
+        long_amount = long_connector.quantize_order_amount(self.config.long_trading_pair, base_amount_raw)
+        short_amount = short_connector.quantize_order_amount(self.config.short_trading_pair, base_amount_raw)
+
+        # Check if quantization caused issues
+        # For hedged positions, amounts should be the same
+        if long_amount != short_amount:
+            self.logger().warning(
+                f"⚠️ Exchange precision mismatch: Long {long_amount:.8f} vs Short {short_amount:.8f}\n"
+                f"  Using larger amount for both to maintain hedge"
+            )
+            # Use the larger amount for both to ensure proper hedge
+            unified_amount = max(long_amount, short_amount)
+            long_amount = unified_amount
+            short_amount = unified_amount
+
+        # Calculate actual values with final amounts
+        long_value = long_amount * long_price
+        short_value = short_amount * short_price
+
+        # Check if values meet minimum requirements
+        min_value = min(long_value, short_value)
+        if min_value < self.config.position_size_quote:
+            # Need to bump up by one step size to meet minimum
+            # Use the larger step size to ensure both exchanges are satisfied
+            step_adjustment = max(long_trading_rules.min_order_size, short_trading_rules.min_order_size)
+            long_amount = long_amount + step_adjustment
+            short_amount = short_amount + step_adjustment
+            long_value = long_amount * long_price
+            short_value = short_amount * short_price
+            self.logger().info(
+                f"  Adjusted both legs up by {step_adjustment:.8f} to meet minimum:\n"
+                f"    Long: {long_amount:.8f} = ${long_value:.2f}\n"
+                f"    Short: {short_amount:.8f} = ${short_value:.2f}"
+            )
+
+        # Recalculate final values
+        long_value = long_amount * long_price
+        short_value = short_amount * short_price
+
+        # Log the final calculation
+        self.logger().info(
+            f"📊 Final order sizes for {self.config.token}:\n"
+            f"  Position size: {long_amount:.8f} {self.config.token} (same for both legs)\n"
+            f"  Long: {long_amount:.8f} @ ${long_price:.4f} = ${long_value:.2f}\n"
+            f"  Short: {short_amount:.8f} @ ${short_price:.4f} = ${short_value:.2f}\n"
+            f"  Hedge status: {'✅ PERFECT' if long_amount == short_amount else '⚠️ MISMATCHED'}"
+        )
+
+        # Check if quantization caused values to drop below exchange minimums
+        if long_value < long_trading_rules.min_notional_size:
+            self.logger().warning(
+                f"⚠️ Long order value ${long_value:.2f} below {self.config.long_connector_name} "
+                f"minimum ${long_trading_rules.min_notional_size:.2f} after quantization"
+            )
+
+        if short_value < short_trading_rules.min_notional_size:
+            self.logger().warning(
+                f"⚠️ Short order value ${short_value:.2f} below {self.config.short_connector_name} "
+                f"minimum ${short_trading_rules.min_notional_size:.2f} after quantization"
+            )
 
         return long_amount, short_amount
 
     async def _calculate_entry_prices(
-        self, long_connector, short_connector, long_amount: Decimal, short_amount: Decimal,
+        self, long_connector, short_connector
     ) -> tuple[Decimal, Decimal]:
-        """Calculate entry order prices based on order type"""
+        """Calculate entry order prices based on order type
+
+        Note: This method is kept for compatibility but the actual price/amount
+        calculation is now done directly in place_entry_orders() to handle the
+        circular dependency between prices and amounts.
+        """
         if self.config.open_order_type == OrderType.LIMIT:
             # Use smart maker pricing for LIMIT orders
             return self._calculate_limit_entry_prices(long_connector, short_connector)
         else:
-            # For MARKET orders, use the fill price
-            return self._calculate_market_entry_prices(
-                long_connector, short_connector, long_amount, short_amount,
-            )
+            # For MARKET orders, return mid prices as estimates
+            long_mid = long_connector.get_mid_price(self.config.long_trading_pair)
+            short_mid = short_connector.get_mid_price(self.config.short_trading_pair)
+            return long_mid, short_mid
 
     def _calculate_limit_entry_prices(self, long_connector, short_connector) -> tuple[Decimal, Decimal]:
         """Calculate limit order prices using smart maker pricing"""
@@ -634,7 +815,11 @@ class FundingArbitrageExecutor(ExecutorBase):
     def _calculate_market_entry_prices(
         self, long_connector, short_connector, long_amount: Decimal, short_amount: Decimal,
     ) -> tuple[Decimal, Decimal]:
-        """Calculate market order fill prices"""
+        """Calculate market order fill prices
+
+        Note: This method is kept for compatibility but is not used directly anymore.
+        Market price calculation is done inline in place_entry_orders().
+        """
         long_price = long_connector.get_price_for_volume(
             self.config.long_trading_pair, True, long_amount,
         ).result_price
@@ -1238,6 +1423,100 @@ class FundingArbitrageExecutor(ExecutorBase):
         await self._cancel_position_order("long", is_close=True)
         await self._cancel_position_order("short", is_close=True)
 
+    async def _attempt_market_close(self, current_time: float):
+        """Attempt to close positions with market orders, with proper error tracking
+
+        Args:
+            current_time: Current timestamp for tracking attempts
+        """
+        try:
+            # Track the attempt
+            self._market_close_attempted = True
+            self._market_close_time = current_time
+            self._market_close_attempts += 1
+            self._last_close_attempt_time = current_time
+            self._close_failure_reason = None
+
+            # Cancel pending limit orders
+            await self.cancel_close_orders()
+
+            # Clear close order tracking to allow new orders
+            self._long_close_order = None
+            self._short_close_order = None
+
+            # Use emergency market orders
+            await self.close_all_positions(close_type=CloseType.STOP_LOSS)
+
+            # DO NOT reset the close timer - we want to track time from original close attempt
+            # This preserves the escalation timeline
+
+            self.logger().info(
+                f"Market close attempt #{self._market_close_attempts} for {self.config.token}"
+            )
+
+        except Exception as e:
+            self._close_failure_reason = str(e)
+            self.logger().error(
+                f"Failed market close attempt #{self._market_close_attempts}: {e}"
+            )
+
+    async def _sync_position_state(self):
+        """Synchronize position state with exchange before retry attempts"""
+        try:
+            # Re-check actual positions from exchange
+            sides: list[PositionSide] = ["long", "short"]
+            for side in sides:
+                connector_name, trading_pair, _ = self._get_position_config(side)
+
+                # Get actual position from exchange
+                position_key = self._get_position_key(connector_name, trading_pair)
+                actual_position = self._strategy.get_position(connector_name, position_key)
+
+                if actual_position:
+                    current_amount = self._get_position_amount(side)
+                    actual_amount = abs(actual_position.amount)
+
+                    if current_amount != actual_amount:
+                        self.logger().info(
+                            f"Syncing {side} position: tracked={current_amount}, actual={actual_amount}"
+                        )
+                        self._set_position_amount(side, actual_amount)
+
+                        # Update filled status
+                        if actual_amount > 0:
+                            self._set_position_filled(side, True)
+                        else:
+                            self._set_position_filled(side, False)
+                else:
+                    # No position on exchange
+                    if self._get_position_amount(side) > 0:
+                        self.logger().info(
+                            f"Clearing {side} position: no position found on exchange"
+                        )
+                        self._set_position_amount(side, Decimal(0))
+                        self._set_position_filled(side, False)
+
+        except Exception as e:
+            self.logger().error(f"Failed to sync position state: {e}")
+
+    def _get_position_key(self, connector_name: str, trading_pair: str) -> str:
+        """Get the position key for the connector
+
+        Args:
+            connector_name: Name of the connector
+            trading_pair: Trading pair
+
+        Returns:
+            Position key string
+        """
+        if self.is_perpetual_connector(connector_name):
+            # Perpetual uses just the trading pair
+            return trading_pair
+        else:
+            # Spot doesn't track positions the same way
+            # This is a placeholder - spot positions are tracked differently
+            return trading_pair
+
     def is_order_filled(self, tracked_order: TrackedOrder) -> bool:
         """Check if an order is filled"""
         if not tracked_order or not tracked_order.order_id:
@@ -1597,8 +1876,9 @@ class FundingArbitrageExecutor(ExecutorBase):
             # Check available margin or quote balance for collateral
             short_quote_balance = short_connector.get_available_balance(short_quote)
             # Assume we need at least position_size_quote / leverage for margin
-            # Using conservative 10x leverage assumption if not specified
-            required_margin = position_size_quote / Decimal(10)
+            # Use configured leverage or default to conservative estimate
+            # The actual leverage is in self.config.leverage
+            required_margin = position_size_quote / Decimal(str(self.config.leverage))
 
             if short_quote_balance < required_margin:
                 self.logger().error(
@@ -1693,6 +1973,15 @@ class FundingArbitrageExecutor(ExecutorBase):
         order_id = event.order_id
         # MarketOrderFailureEvent should always have these attributes, but be defensive
         error_message = str(getattr(event, "error_message", "Unknown error"))
+
+        # Track close order failures for recovery mechanism
+        if (self._long_close_order and self._long_close_order.order_id == order_id) or \
+           (self._short_close_order and self._short_close_order.order_id == order_id):
+            self._close_failure_reason = error_message
+            self.logger().error(
+                f"Close order {order_id} failed: {error_message}. "
+                f"Will retry with backoff."
+            )
 
         # Check if it's a ReduceOnly error (Binance specific)
         if "ReduceOnly" in error_message or "reduceOnly" in error_message:

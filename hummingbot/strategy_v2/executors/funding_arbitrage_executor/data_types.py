@@ -55,6 +55,7 @@ class FundingArbitrageExecutorConfig(ExecutorConfigBase):
     # Safety parameters
     max_unhedged_exposure_time: int = 30  # Max seconds of unhedged exposure
     warning_exposure_time: int = 10  # Warn after this many seconds
+    reconciliation_interval: int = 5  # Seconds between reconciliation attempts
     emergency_use_market_orders: bool = True  # Use market orders for emergency hedge
 
     # Funding rate thresholds

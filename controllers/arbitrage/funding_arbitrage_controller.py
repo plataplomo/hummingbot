@@ -29,6 +29,7 @@ class OpportunityTier(Enum):
 @dataclass
 class FundingOpportunity:
     """Represents a funding arbitrage opportunity with full profitability metrics"""
+    # Required fields (no defaults)
     token: str
     long_exchange: str
     short_exchange: str
@@ -37,6 +38,13 @@ class FundingOpportunity:
     spread: Decimal  # Raw spread per funding interval
     expected_profit: Decimal  # Expected profit at max holding time
     required_capital: Decimal
+
+    # Exchange-specific funding intervals (required, no defaults)
+    funding_interval_long: float  # Hours between payments on long exchange - from config
+    funding_interval_short: float  # Hours between payments on short exchange - from config
+    effective_interval: float  # Min of both intervals (conservative)
+
+    # Optional fields (with defaults)
     discovered_at: float = 0  # Timestamp when opportunity was first discovered
     last_updated: float = 0   # Last time this opportunity was refreshed
     tier: OpportunityTier | None = None  # Quality tier
@@ -46,11 +54,6 @@ class FundingOpportunity:
     profit_min_hold: Decimal = Decimal(0)  # Profit at min holding time
     profit_max_hold: Decimal = Decimal(0)  # Profit at max holding time
     effective_apr: Decimal = Decimal(0)  # Annualized return based on expected hold
-
-    # Exchange-specific funding intervals for transparency
-    funding_interval_long: float  # Hours between payments on long exchange - from config
-    funding_interval_short: float  # Hours between payments on short exchange - from config
-    effective_interval: float  # Min of both intervals (conservative)
 
     @property
     def opportunity_id(self) -> str:
@@ -945,7 +948,9 @@ class FundingArbitrageController(ControllerBase):
                     tier = self._classify_opportunity_tier(normalized_spread)
 
                     # Calculate capital requirement and expected profit
-                    required_capital = self.config.position_size_quote * self.config.legs_per_arbitrage_position
+                    # Account for leverage - we only need 1/leverage of notional value
+                    notional_value = self.config.position_size_quote * self.config.legs_per_arbitrage_position
+                    required_capital = notional_value / self.config.leverage
                     expected_profit_quote = profit_max_hold * self.config.position_size_quote
 
                     # Calculate effective APR based on max holding time
@@ -1295,6 +1300,14 @@ class FundingArbitrageController(ControllerBase):
                 self.logger().warning(f"Cannot get prices for {token} to validate position size")
                 return None
 
+            # Log current prices for debugging
+            self.logger().info(
+                f"📊 Validating {token} position sizing:\n"
+                f"  Config size: ${position_size_quote:.2f}\n"
+                f"  {long_connector} price: ${long_price:.4f}\n"
+                f"  {short_connector} price: ${short_price:.4f}"
+            )
+
             # Get trading rules for both exchanges
             long_rules = self.market_data_provider.get_trading_rules(long_connector, long_trading_pair)
             short_rules = self.market_data_provider.get_trading_rules(short_connector, short_trading_pair)
@@ -1307,6 +1320,13 @@ class FundingArbitrageController(ControllerBase):
             min_long_notional = long_rules.min_notional_size
             min_short_notional = short_rules.min_notional_size
 
+            # Log the actual requirements being checked
+            self.logger().info(
+                f"  📋 Exchange requirements for {token}:\n"
+                f"    {long_connector}: min_size={min_long_size:.8f}, min_notional=${min_long_notional:.2f}\n"
+                f"    {short_connector}: min_size={min_short_size:.8f}, min_notional=${min_short_notional:.2f}"
+            )
+
             # Calculate minimum required position size in quote
             min_required_from_base = max(
                 min_long_size * long_price,
@@ -1318,16 +1338,37 @@ class FundingArbitrageController(ControllerBase):
             # Add configured buffer to avoid edge cases
             min_required_with_buffer = min_required * (Decimal(1) + self.config.min_position_size_buffer_percent)
 
+            # ECONOMIC INSIGHT: The executor will handle microstructure adjustments
+            # We validate here that the BASE requirement is met, and the executor
+            # will adjust UP after quantization if needed to ensure final order meets minimum
+
+            # Calculate what the actual order sizes would be
+            long_token_amount = position_size_quote / long_price
+            short_token_amount = position_size_quote / short_price
+            long_value = long_token_amount * long_price
+            short_value = short_token_amount * short_price
+
+            self.logger().info(
+                f"  💰 Calculated order values for {token}:\n"
+                f"    Long: {long_token_amount:.4f} tokens = ${long_value:.2f}\n"
+                f"    Short: {short_token_amount:.4f} tokens = ${short_value:.2f}\n"
+                f"    Required minimum: ${min_required_with_buffer:.2f}"
+            )
+
             if position_size_quote < min_required_with_buffer:
                 self.logger().info(
                     f"⚠️ Skipping {token}: Position size ${position_size_quote:.2f} below minimum "
-                    f"${min_required_with_buffer:.2f} (long: {min_long_size:.8f} {token} / "
-                    f"${min_long_notional:.2f}, short: {min_short_size:.8f} {token} / "
-                    f"${min_short_notional:.2f})",
+                    f"${min_required_with_buffer:.2f}\n"
+                    f"    Long requirements: {min_long_size:.8f} {token} / ${min_long_notional:.2f}\n"
+                    f"    Short requirements: {min_short_size:.8f} {token} / ${min_short_notional:.2f}\n"
+                    f"    Would create: Long=${long_value:.2f}, Short=${short_value:.2f}"
                 )
                 # Don't trade this token in this session - position size too small
                 return None
 
+            self.logger().info(
+                f"✅ {token} position validated: ${position_size_quote:.2f} meets all requirements"
+            )
             return position_size_quote
 
         except Exception as e:
@@ -1345,6 +1386,14 @@ class FundingArbitrageController(ControllerBase):
 
             long_trading_pair = f"{opportunity.token}-{long_quote}"
             short_trading_pair = f"{opportunity.token}-{short_quote}"
+
+            self.logger().info(
+                f"🎯 Creating executor for {opportunity.token} opportunity:\n"
+                f"  Long: {opportunity.long_exchange} ({long_trading_pair})\n"
+                f"  Short: {opportunity.short_exchange} ({short_trading_pair})\n"
+                f"  Spread: {opportunity.spread:.4%}\n"
+                f"  Config position size: ${self.config.position_size_quote:.2f}"
+            )
 
             # Validate position size meets minimum order requirements
             valid_size = self._validate_and_adjust_position_size(
@@ -1389,6 +1438,7 @@ class FundingArbitrageController(ControllerBase):
                 funding_rate_diff_stop_loss=self.config.funding_rate_diff_stop_loss,
                 max_unhedged_exposure_time=self.config.max_exposure_time,
                 warning_exposure_time=self.config.exposure_warning_time,
+                reconciliation_interval=self.config.reconciliation_interval,
                 emergency_use_market_orders=self.config.emergency_use_market_orders,
                 open_order_type=self.config.open_order_type,
                 close_order_type=self.config.close_order_type,
