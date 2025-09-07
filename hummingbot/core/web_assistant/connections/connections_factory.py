@@ -1,9 +1,13 @@
-from typing import TypeVar
+import os
+from typing import TYPE_CHECKING, TypeVar
 
 import aiohttp
 
 from hummingbot.core.web_assistant.connections.rest_connection import RESTConnection
 from hummingbot.core.web_assistant.connections.ws_connection import WSConnection
+
+if TYPE_CHECKING:
+    pass
 
 ConnectionsFactoryT = TypeVar("ConnectionsFactoryT", bound="ConnectionsFactory")
 
@@ -46,9 +50,44 @@ class ConnectionsFactory:
     async def _get_shared_client(self) -> aiohttp.ClientSession:
         """
         Lazily create a shared aiohttp.ClientSession if not already available.
+        Supports HTTP proxy via client configuration or environment variables.
         """
         if self._shared_client is None:
-            self._shared_client = aiohttp.ClientSession()
+            # Try to get proxy settings from client config first
+            use_proxy = False
+            proxy_from_config = False
+
+            try:
+                # Import here to avoid circular dependency
+                from hummingbot.client.config.config_helpers import load_client_config_map_from_file  # noqa: PLC0415
+                client_config = load_client_config_map_from_file()
+
+                if hasattr(client_config, "http_proxy_enabled") and client_config.http_proxy_enabled:
+                    use_proxy = True
+                    proxy_from_config = True
+
+                    # Set environment variables from config if proxy URLs are provided
+                    if client_config.http_proxy_url:
+                        os.environ["HTTP_PROXY"] = str(client_config.http_proxy_url)
+                    if client_config.https_proxy_url:
+                        os.environ["HTTPS_PROXY"] = str(client_config.https_proxy_url)
+                    if client_config.no_proxy_hosts:
+                        os.environ["NO_PROXY"] = str(client_config.no_proxy_hosts)
+            except Exception:  # noqa: S110
+                # If config loading fails, fall back to environment variable
+                pass
+
+            # Fall back to environment variable if config doesn't enable proxy
+            if not proxy_from_config:
+                use_proxy = os.getenv("HUMMINGBOT_USE_PROXY", "").lower() in ("true", "1", "yes")
+
+            if use_proxy:
+                # Enable proxy support by setting trust_env=True
+                # This will make aiohttp respect HTTP_PROXY, HTTPS_PROXY, and NO_PROXY env vars
+                self._shared_client = aiohttp.ClientSession(trust_env=True)
+            else:
+                # Default behavior - no proxy support
+                self._shared_client = aiohttp.ClientSession()
         return self._shared_client
 
     async def close(self) -> None:

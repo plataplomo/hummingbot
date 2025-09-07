@@ -691,6 +691,34 @@ class ClientConfigMap(BaseClientModel):
             "prompt": lambda cm: "Would you like to fetch trading pairs from all exchanges? (True/False)"
         }
     )
+    http_proxy_enabled: bool = Field(
+        default=False,
+        description="Enable HTTP proxy support for all API connections",
+        json_schema_extra={
+            "prompt": lambda cm: "Would you like to enable HTTP proxy support? (True/False)"
+        }
+    )
+    http_proxy_url: str = Field(
+        default="",
+        description="HTTP proxy URL (e.g., http://localhost:8080)",
+        json_schema_extra={
+            "prompt": lambda cm: "Enter HTTP proxy URL (e.g., http://localhost:8080)"
+        }
+    )
+    https_proxy_url: str = Field(
+        default="",
+        description="HTTPS proxy URL (e.g., http://localhost:8080)",
+        json_schema_extra={
+            "prompt": lambda cm: "Enter HTTPS proxy URL (e.g., http://localhost:8080)"
+        }
+    )
+    no_proxy_hosts: str = Field(
+        default="localhost,127.0.0.1",
+        description="Comma-separated list of hosts to bypass proxy",
+        json_schema_extra={
+            "prompt": lambda cm: "Enter hosts to bypass proxy (comma-separated, e.g., localhost,127.0.0.1)"
+        }
+    )
     log_level: str = Field(default="INFO")
     debug_console: bool = Field(default=False)
     strategy_report_interval: float = Field(default=900)
