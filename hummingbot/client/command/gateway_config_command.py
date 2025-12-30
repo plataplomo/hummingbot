@@ -3,7 +3,7 @@ import os
 from typing import TYPE_CHECKING, Any, List, Optional
 
 from hummingbot.client.command.gateway_api_manager import begin_placeholder_mode
-from hummingbot.core.gateway.gateway_status_monitor import GatewayStatus
+from hummingbot.core.gateway.gateway_http_client import GatewayStatus
 from hummingbot.core.utils.async_utils import safe_ensure_future
 from hummingbot.core.utils.gateway_config_utils import build_config_dict_display
 
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 def ensure_gateway_online(func):
     def wrapper(self, *args, **kwargs):
-        if self._gateway_monitor.gateway_status is GatewayStatus.OFFLINE:
+        if self.trading_core.gateway_monitor.gateway_status is GatewayStatus.OFFLINE:
             self.logger().error("Gateway is offline")
             return
         return func(self, *args, **kwargs)
@@ -294,18 +294,15 @@ class GatewayConfigCommand:
                     self.notify(f"Error: Expected boolean value (true/false), got '{value}'")
                     return None
 
-            elif isinstance(current_value, int):
-                # Integer conversion
+            elif isinstance(current_value, (int, float)):
+                # Numeric conversion - accept both int and float values
+                # This allows reverting from integer to decimal values
                 try:
-                    return int(value)
-                except ValueError:
-                    self.notify(f"Error: Expected integer value, got '{value}'")
-                    return None
-
-            elif isinstance(current_value, float):
-                # Float conversion
-                try:
-                    return float(value)
+                    parsed = float(value)
+                    # Return int if the value is a whole number and current is int
+                    if isinstance(current_value, int) and parsed == int(parsed):
+                        return int(parsed)
+                    return parsed
                 except ValueError:
                     self.notify(f"Error: Expected numeric value, got '{value}'")
                     return None

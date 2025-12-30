@@ -12,7 +12,7 @@ from tabulate import tabulate_formats
 from hummingbot.client.config.config_data_types import BaseClientModel, ClientConfigEnum
 from hummingbot.client.config.config_methods import using_exchange as using_exchange_pointer
 from hummingbot.client.config.config_validators import validate_bool, validate_float
-from hummingbot.client.settings import DEFAULT_GATEWAY_CERTS_PATH, DEFAULT_LOG_FILE_PATH, AllConnectorSettings
+from hummingbot.client.settings import DEFAULT_LOG_FILE_PATH, AllConnectorSettings
 from hummingbot.connector.connector_base import ConnectorBase
 from hummingbot.connector.connector_metrics_collector import (
     DummyMetricsCollector,
@@ -346,6 +346,7 @@ class GatewayConfigMap(BaseClientModel):
         default=False,
         json_schema_extra={"prompt": lambda cm: "Enable SSL endpoints for secure Gateway connection? (True / False)"},
     )
+
     model_config = ConfigDict(title="gateway")
 
 
@@ -466,11 +467,6 @@ class AscendExRateSourceMode(ExchangeRateSourceModeBase):
 class BinanceRateSourceMode(ExchangeRateSourceModeBase):
     name: str = Field(default="binance")
     model_config = ConfigDict(title="binance")
-
-
-class BinanceUSRateSourceMode(ExchangeRateSourceModeBase):
-    name: str = Field(default="binance_us")
-    model_config = ConfigDict(title="binance_us")
 
 
 class MexcRateSourceMode(ExchangeRateSourceModeBase):
@@ -665,7 +661,6 @@ class DeriveRateSourceMode(ExchangeRateSourceModeBase):
 RATE_SOURCE_MODES = {
     AscendExRateSourceMode.model_config["title"]: AscendExRateSourceMode,
     BinanceRateSourceMode.model_config["title"]: BinanceRateSourceMode,
-    BinanceUSRateSourceMode.model_config["title"]: BinanceUSRateSourceMode,
     CoinGeckoRateSourceMode.model_config["title"]: CoinGeckoRateSourceMode,
     CoinCapRateSourceMode.model_config["title"]: CoinCapRateSourceMode,
     DexalotRateSourceMode.model_config["title"]: DexalotRateSourceMode,
@@ -752,10 +747,6 @@ class ClientConfigMap(BaseClientModel):
         description=("Gateway API Configurations"
                      "\ndefault host to only use localhost"
                      "\nPort need to match the final installation port for Gateway"),
-    )
-    certs_path: Path = Field(
-        default=DEFAULT_GATEWAY_CERTS_PATH,
-        json_schema_extra={"prompt": lambda cm: "Where would you like to save certificates that connect your bot to Gateway? (default 'certs')"},
     )
 
     anonymized_metrics_mode: Union[tuple(METRICS_MODES.values())] = Field(

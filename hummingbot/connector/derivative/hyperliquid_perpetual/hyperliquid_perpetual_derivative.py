@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 import time
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, AsyncIterable, Dict, List, Optional, Tuple
+from typing import Any, AsyncIterable, Dict, List, Literal, Optional, Tuple
 
 from bidict import bidict
 
@@ -32,9 +32,6 @@ from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
 from hummingbot.core.utils.estimate_fee import build_trade_fee
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
-if TYPE_CHECKING:
-    from hummingbot.client.config.config_helpers import ClientConfigAdapter
-
 bpm_logger = None
 
 
@@ -46,24 +43,27 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
 
     def __init__(
             self,
-            client_config_map: "ClientConfigAdapter",
-            hyperliquid_perpetual_api_secret: str = None,
+            balance_asset_limit: Optional[Dict[str, Dict[str, Decimal]]] = None,
+            rate_limits_share_pct: Decimal = Decimal("100"),
+            hyperliquid_perpetual_secret_key: str = None,
+            hyperliquid_perpetual_address: str = None,
             use_vault: bool = False,
-            hyperliquid_perpetual_api_key: str = None,
+            hyperliquid_perpetual_mode: Literal["arb_wallet", "api_wallet"] = "arb_wallet",
             trading_pairs: Optional[List[str]] = None,
             trading_required: bool = True,
             domain: str = CONSTANTS.DOMAIN,
     ):
-        self.hyperliquid_perpetual_api_key = hyperliquid_perpetual_api_key
-        self.hyperliquid_perpetual_secret_key = hyperliquid_perpetual_api_secret
+        self.hyperliquid_perpetual_address = hyperliquid_perpetual_address
+        self.hyperliquid_perpetual_secret_key = hyperliquid_perpetual_secret_key
         self._use_vault = use_vault
+        self._connection_mode = hyperliquid_perpetual_mode
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self._domain = domain
         self._position_mode = None
         self._last_trade_history_timestamp = None
         self.coin_to_asset: Dict[str, int] = {}
-        super().__init__(client_config_map)
+        super().__init__(balance_asset_limit, rate_limits_share_pct)
 
     @property
     def name(self) -> str:
@@ -73,8 +73,11 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
     @property
     def authenticator(self) -> Optional[HyperliquidPerpetualAuth]:
         if self._trading_required:
-            return HyperliquidPerpetualAuth(self.hyperliquid_perpetual_api_key, self.hyperliquid_perpetual_secret_key,
-                                            self._use_vault)
+            return HyperliquidPerpetualAuth(
+                self.hyperliquid_perpetual_address,
+                self.hyperliquid_perpetual_secret_key,
+                self._use_vault
+            )
         return None
 
     @property
@@ -305,10 +308,8 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
         md5.update(order_id.encode('utf-8'))
         hex_order_id = f"0x{md5.hexdigest()}"
         if order_type is OrderType.MARKET:
-            mid_price = self.get_mid_price(trading_pair)
-            slippage = CONSTANTS.MARKET_ORDER_SLIPPAGE
-            market_price = mid_price * Decimal(1 + slippage)
-            price = self.quantize_order_price(trading_pair, market_price)
+            reference_price = self.get_mid_price(trading_pair) if price.is_nan() else price
+            price = self.quantize_order_price(trading_pair, reference_price * Decimal(1 + CONSTANTS.MARKET_ORDER_SLIPPAGE))
 
         safe_ensure_future(self._create_order(
             trade_type=TradeType.BUY,
@@ -344,10 +345,8 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
         md5.update(order_id.encode('utf-8'))
         hex_order_id = f"0x{md5.hexdigest()}"
         if order_type is OrderType.MARKET:
-            mid_price = self.get_mid_price(trading_pair)
-            slippage = CONSTANTS.MARKET_ORDER_SLIPPAGE
-            market_price = mid_price * Decimal(1 - slippage)
-            price = self.quantize_order_price(trading_pair, market_price)
+            reference_price = self.get_mid_price(trading_pair) if price.is_nan() else price
+            price = self.quantize_order_price(trading_pair, reference_price * Decimal(1 - CONSTANTS.MARKET_ORDER_SLIPPAGE))
 
         safe_ensure_future(self._create_order(
             trade_type=TradeType.SELL,
@@ -416,7 +415,7 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
                     path_url=CONSTANTS.ACCOUNT_TRADE_LIST_URL,
                     data={
                         "type": CONSTANTS.TRADES_TYPE,
-                        "user": self.hyperliquid_perpetual_api_key,
+                        "user": self.hyperliquid_perpetual_address,
                     })
             except asyncio.CancelledError:
                 raise
@@ -492,7 +491,7 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
             path_url=CONSTANTS.ORDER_URL,
             data={
                 "type": CONSTANTS.ORDER_STATUS_TYPE,
-                "user": self.hyperliquid_perpetual_api_key,
+                "user": self.hyperliquid_perpetual_address,
                 "oid": int(exchange_order_id) if exchange_order_id else client_order_id
             })
         current_state = order_update["order"]["status"]
@@ -712,7 +711,7 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
 
         account_info = await self._api_post(path_url=CONSTANTS.ACCOUNT_INFO_URL,
                                             data={"type": CONSTANTS.USER_STATE_TYPE,
-                                                  "user": self.hyperliquid_perpetual_api_key},
+                                                  "user": self.hyperliquid_perpetual_address},
                                             )
         quote = CONSTANTS.CURRENCY
         self._account_balances[quote] = Decimal(account_info["crossMarginSummary"]["accountValue"])
@@ -721,7 +720,7 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
     async def _update_positions(self):
         positions = await self._api_post(path_url=CONSTANTS.POSITION_INFORMATION_URL,
                                          data={"type": CONSTANTS.USER_STATE_TYPE,
-                                               "user": self.hyperliquid_perpetual_api_key}
+                                               "user": self.hyperliquid_perpetual_address}
                                          )
         for position in positions["assetPositions"]:
             position = position.get("position")
@@ -800,7 +799,7 @@ class HyperliquidPerpetualDerivative(PerpetualDerivativePyBase):
         funding_info_response = await self._api_post(path_url=CONSTANTS.GET_LAST_FUNDING_RATE_PATH_URL,
                                                      data={
                                                          "type": "userFunding",
-                                                         "user": self.hyperliquid_perpetual_api_key,
+                                                         "user": self.hyperliquid_perpetual_address,
                                                          "startTime": self._last_funding_time(),
                                                      }
                                                      )

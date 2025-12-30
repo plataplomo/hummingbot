@@ -7,6 +7,8 @@ from hummingbot.data_feed.candles_feed.backpack_perpetual_candles.backpack_perpe
 from hummingbot.data_feed.candles_feed.backpack_spot_candles.backpack_spot_candles import BackpackSpotCandles
 from hummingbot.data_feed.candles_feed.binance_perpetual_candles import BinancePerpetualCandles
 from hummingbot.data_feed.candles_feed.binance_spot_candles import BinanceSpotCandles
+from hummingbot.data_feed.candles_feed.bitget_perpetual_candles import BitgetPerpetualCandles
+from hummingbot.data_feed.candles_feed.bitget_spot_candles import BitgetSpotCandles
 from hummingbot.data_feed.candles_feed.bitmart_perpetual_candles.bitmart_perpetual_candles import (
     BitmartPerpetualCandles,
 )
@@ -52,6 +54,8 @@ class CandlesFactory:
         "backpack_perpetual": BackpackPerpetualCandles,
         "binance_perpetual": BinancePerpetualCandles,
         "binance": BinanceSpotCandles,
+        "bitget": BitgetSpotCandles,
+        "bitget_perpetual": BitgetPerpetualCandles,
         "gate_io": GateioSpotCandles,
         "gate_io_perpetual": GateioPerpetualCandles,
         "kucoin": KucoinSpotCandles,

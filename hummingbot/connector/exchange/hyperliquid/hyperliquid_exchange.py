@@ -1,7 +1,7 @@
 import asyncio
 import hashlib
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, AsyncIterable, Dict, List, Optional, Tuple
+from typing import Any, AsyncIterable, Dict, List, Literal, Optional, Tuple
 
 from bidict import bidict
 
@@ -30,9 +30,6 @@ from hummingbot.core.event.events import MarketEvent, OrderFilledEvent
 from hummingbot.core.utils.async_utils import safe_ensure_future, safe_gather
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
-if TYPE_CHECKING:
-    from hummingbot.client.config.config_helpers import ClientConfigAdapter
-
 
 class HyperliquidExchange(ExchangePyBase):
     UPDATE_ORDER_STATUS_MIN_INTERVAL = 10.0
@@ -44,17 +41,20 @@ class HyperliquidExchange(ExchangePyBase):
 
     def __init__(
             self,
-            client_config_map: "ClientConfigAdapter",
-            hyperliquid_api_secret: str = None,
+            balance_asset_limit: Optional[Dict[str, Dict[str, Decimal]]] = None,
+            rate_limits_share_pct: Decimal = Decimal("100"),
+            hyperliquid_secret_key: str = None,
+            hyperliquid_address: str = None,
             use_vault: bool = False,
-            hyperliquid_api_key: str = None,
+            hyperliquid_mode: Literal["arb_wallet", "api_wallet"] = "arb_wallet",
             trading_pairs: Optional[List[str]] = None,
             trading_required: bool = True,
             domain: str = CONSTANTS.DOMAIN,
     ):
-        self.hyperliquid_api_key = hyperliquid_api_key
-        self.hyperliquid_secret_key = hyperliquid_api_secret
+        self.hyperliquid_address = hyperliquid_address
+        self.hyperliquid_secret_key = hyperliquid_secret_key
         self._use_vault = use_vault
+        self._connection_mode = hyperliquid_mode
         self._trading_required = trading_required
         self._trading_pairs = trading_pairs
         self._domain = domain
@@ -62,7 +62,7 @@ class HyperliquidExchange(ExchangePyBase):
         self._last_trades_poll_timestamp = 1.0
         self.coin_to_asset: Dict[str, int] = {}
         self.name_to_coin: Dict[str, str] = {}
-        super().__init__(client_config_map)
+        super().__init__(balance_asset_limit, rate_limits_share_pct)
 
     @property
     def name(self) -> str:
@@ -72,8 +72,11 @@ class HyperliquidExchange(ExchangePyBase):
     @property
     def authenticator(self) -> Optional[HyperliquidAuth]:
         if self._trading_required:
-            return HyperliquidAuth(self.hyperliquid_api_key, self.hyperliquid_secret_key,
-                                   self._use_vault)
+            return HyperliquidAuth(
+                self.hyperliquid_address,
+                self.hyperliquid_secret_key,
+                self._use_vault
+            )
         return None
 
     @property
@@ -285,10 +288,8 @@ class HyperliquidExchange(ExchangePyBase):
         md5.update(order_id.encode('utf-8'))
         hex_order_id = f"0x{md5.hexdigest()}"
         if order_type is OrderType.MARKET:
-            mid_price = self.get_mid_price(trading_pair)
-            slippage = CONSTANTS.MARKET_ORDER_SLIPPAGE
-            market_price = mid_price * Decimal(1 + slippage)
-            price = self.quantize_order_price(trading_pair, market_price)
+            reference_price = self.get_mid_price(trading_pair) if price.is_nan() else price
+            price = self.quantize_order_price(trading_pair, reference_price * Decimal(1 + CONSTANTS.MARKET_ORDER_SLIPPAGE))
 
         safe_ensure_future(self._create_order(
             trade_type=TradeType.BUY,
@@ -324,10 +325,8 @@ class HyperliquidExchange(ExchangePyBase):
         md5.update(order_id.encode('utf-8'))
         hex_order_id = f"0x{md5.hexdigest()}"
         if order_type is OrderType.MARKET:
-            mid_price = self.get_mid_price(trading_pair)
-            slippage = CONSTANTS.MARKET_ORDER_SLIPPAGE
-            market_price = mid_price * Decimal(1 - slippage)
-            price = self.quantize_order_price(trading_pair, market_price)
+            reference_price = self.get_mid_price(trading_pair) if price.is_nan() else price
+            price = self.quantize_order_price(trading_pair, reference_price * Decimal(1 - CONSTANTS.MARKET_ORDER_SLIPPAGE))
 
         safe_ensure_future(self._create_order(
             trade_type=TradeType.SELL,
@@ -394,7 +393,7 @@ class HyperliquidExchange(ExchangePyBase):
                     path_url = CONSTANTS.ACCOUNT_TRADE_LIST_URL,
                     data = {
                         "type": CONSTANTS.TRADES_TYPE,
-                        "user": self.hyperliquid_api_key,
+                        "user": self.hyperliquid_address,
                     })
             except asyncio.CancelledError:
                 raise
@@ -640,7 +639,7 @@ class HyperliquidExchange(ExchangePyBase):
 
         account_info = await self._api_post(path_url=CONSTANTS.ACCOUNT_INFO_URL,
                                             data={"type": CONSTANTS.USER_STATE_TYPE,
-                                                  "user": self.hyperliquid_api_key},
+                                                  "user": self.hyperliquid_address},
                                             )
         balances = account_info["balances"]
         for balance_entry in balances:
@@ -662,7 +661,7 @@ class HyperliquidExchange(ExchangePyBase):
             path_url=CONSTANTS.ORDER_URL,
             data={
                 "type": CONSTANTS.ORDER_STATUS_TYPE,
-                "user": self.hyperliquid_api_key,
+                "user": self.hyperliquid_address,
                 "oid": int(tracked_order.exchange_order_id) if tracked_order.exchange_order_id else client_order_id
             })
         current_state = order_update["order"]["status"]
@@ -702,7 +701,7 @@ class HyperliquidExchange(ExchangePyBase):
             for trading_pair in trading_pairs:
                 params = {
                     'type': CONSTANTS.TRADES_TYPE,
-                    'user': self.hyperliquid_api_key,
+                    'user': self.hyperliquid_address,
                 }
                 if self._last_poll_timestamp > 0:
                     params['type'] = 'userFillsByTime'
@@ -784,7 +783,7 @@ class HyperliquidExchange(ExchangePyBase):
                 path_url=CONSTANTS.MY_TRADES_PATH_URL,
                 params={
                     "type": "userFills",
-                    'user': self.hyperliquid_api_key,
+                    'user': self.hyperliquid_address,
                 },
                 is_auth_required=True,
                 limit_id=CONSTANTS.MY_TRADES_PATH_URL)

@@ -12,8 +12,7 @@ from pyinjective.core.market_v2 import SpotMarket
 from pyinjective.core.token import Token
 from pyinjective.wallet import Address, PrivateKey
 
-from hummingbot.client.config.client_config_map import ClientConfigMap
-from hummingbot.client.config.config_helpers import ClientConfigAdapter
+from hummingbot.connector.exchange.injective_v2.injective_market import InjectiveToken
 from hummingbot.connector.exchange.injective_v2.injective_v2_api_order_book_data_source import (
     InjectiveV2APIOrderBookDataSource,
 )
@@ -49,8 +48,6 @@ class InjectiveV2APIOrderBookDataSourceTests(TestCase):
         self.async_tasks = []
         asyncio.set_event_loop(self.async_loop)
 
-        client_config_map = ClientConfigAdapter(ClientConfigMap())
-
         _, grantee_private_key = PrivateKey.generate()
         _, granter_private_key = PrivateKey.generate()
 
@@ -70,7 +67,6 @@ class InjectiveV2APIOrderBookDataSourceTests(TestCase):
         )
 
         self.connector = InjectiveV2Exchange(
-            client_config_map=client_config_map,
             connector_configuration=injective_config,
             trading_pairs=[self.trading_pair],
         )
@@ -160,18 +156,13 @@ class InjectiveV2APIOrderBookDataSourceTests(TestCase):
         self.query_executor._tokens_responses.put_nowait(
             {token.symbol: token for token in [market.base_token, market.quote_token]}
         )
-        base_decimals = market.base_token.decimals
-        quote_decimals = market.quote_token.decimals
 
         order_book_snapshot = {
-            "buys": [(Decimal("9487") * Decimal(f"1e{quote_decimals - base_decimals}"),
-                      Decimal("336241") * Decimal(f"1e{base_decimals}"),
-                      1640001112223)],
-            "sells": [(Decimal("9487.5") * Decimal(f"1e{quote_decimals - base_decimals}"),
-                      Decimal("522147") * Decimal(f"1e{base_decimals}"),
-                      1640001112224)],
+            "buys": [(InjectiveToken.convert_value_to_extended_decimal_format(Decimal("9487")),
+                      InjectiveToken.convert_value_to_extended_decimal_format(Decimal("336241")))],
+            "sells": [(InjectiveToken.convert_value_to_extended_decimal_format(Decimal("9487.5")),
+                      InjectiveToken.convert_value_to_extended_decimal_format(Decimal("522147")))],
             "sequence": 512,
-            "timestamp": 1650001112223,
         }
 
         self.query_executor._spot_order_book_responses.put_nowait(order_book_snapshot)
