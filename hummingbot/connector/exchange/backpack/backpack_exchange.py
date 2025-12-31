@@ -986,8 +986,6 @@ class BackpackExchange(ExchangePyBase):
         Returns:
             List of TradingRule objects
         """
-        # Update trading fees from account endpoint
-        await self._update_trading_fees()
         trading_rules = []
 
         # Handle response which comes as {"data": list} after our wrapping

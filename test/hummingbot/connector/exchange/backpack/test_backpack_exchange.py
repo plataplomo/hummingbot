@@ -916,11 +916,7 @@ class BackpackExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTest
             ]
         }
 
-        with patch(
-            "hummingbot.connector.exchange.backpack.backpack_exchange.BackpackExchange._update_trading_fees",
-            new_callable=AsyncMock,
-        ):
-            result = self.async_run_with_timeout(self.exchange._format_trading_rules(exchange_info))
+        result = self.async_run_with_timeout(self.exchange._format_trading_rules(exchange_info))
 
         self.assertEqual(result[0].min_notional_size, Decimal("1.0"))
 
@@ -940,11 +936,7 @@ class BackpackExchangeTests(AbstractExchangeConnectorTests.ExchangeConnectorTest
             ]
         }
 
-        with patch(
-            "hummingbot.connector.exchange.backpack.backpack_exchange.BackpackExchange._update_trading_fees",
-            new_callable=AsyncMock,
-        ):
-            result = self.async_run_with_timeout(self.exchange._format_trading_rules(exchange_info))
+        result = self.async_run_with_timeout(self.exchange._format_trading_rules(exchange_info))
 
         self.assertEqual(result[0].max_order_size, Decimal("100"))
 
