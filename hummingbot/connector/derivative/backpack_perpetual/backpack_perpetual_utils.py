@@ -27,6 +27,8 @@ DEFAULT_FEES = TradeFeeSchema(
     taker_percent_fee_decimal=Decimal("0.0005"),  # 0.05% taker fee
 )
 
+INVALID_API_SECRET_MESSAGE = "Invalid API secret format. Expected base64 encoded Ed25519 private key."
+
 
 def normalize_response_to_list(response: Any) -> list[Any]:
     """Normalize API response to a list format.

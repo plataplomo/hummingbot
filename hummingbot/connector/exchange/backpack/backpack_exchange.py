@@ -100,16 +100,12 @@ class BackpackExchange(ExchangePyBase):
         return all(self.status_dict.values())
 
     def _is_user_stream_initialized(self) -> bool:
-        """Check if user stream is initialized.
-
-        For Backpack, we consider the stream initialized if we have a data source,
-        regardless of whether messages have been received yet, since the private
-        stream may not send messages until there are actual order updates.
-        """
-        return (
-            self._user_stream_tracker is not None
-            and self._user_stream_tracker.data_source is not None
-        ) or not self.is_trading_required
+        """Check if the private user stream has received data."""
+        if not self.is_trading_required:
+            return True
+        if self._user_stream_tracker is None or self._user_stream_tracker.data_source is None:
+            return False
+        return self._user_stream_tracker.data_source.last_recv_time > 0
 
     @property
     def authenticator(self) -> BackpackAuth:
@@ -415,16 +411,9 @@ class BackpackExchange(ExchangePyBase):
         """Fetch updates for the status polling loop.
         This method is called periodically to update order status.
         """
-        try:
-            # Update order fills from trades if needed
-            await self._update_order_fills_from_trades()
-        except Exception as e:
-            self.logger().error(f"Error in _update_order_fills_from_trades: {e}", exc_info=True)
-
-        try:
-            await self._sync_open_orders_with_missing_exchange_ids()
-        except Exception as e:
-            self.logger().error(f"Error syncing open orders: {e}", exc_info=True)
+        # Update order fills from trades if needed
+        await self._update_order_fills_from_trades()
+        await self._sync_open_orders_with_missing_exchange_ids()
 
         # Call parent implementation
         await super()._status_polling_loop_fetch_updates()
@@ -610,40 +599,35 @@ class BackpackExchange(ExchangePyBase):
     # Balance management
     async def _update_balances(self):
         """Update account balances using collateral endpoint as single source of truth."""
-        try:
-            # Get collateral balances - this includes everything (spot + auto-lent)
-            collateral_data = await self._api_get(
-                path_url=CONSTANTS.COLLATERAL_URL,
-                is_auth_required=True,
-                limit_id=CONSTANTS.COLLATERAL_URL,
-            )
+        # Get collateral balances - this includes everything (spot + auto-lent)
+        collateral_data = await self._api_get(
+            path_url=CONSTANTS.COLLATERAL_URL,
+            is_auth_required=True,
+            limit_id=CONSTANTS.COLLATERAL_URL,
+        )
 
-            # Check if we got valid data
-            if not collateral_data or "collateral" not in collateral_data:
-                self.logger().error(f"Invalid collateral data received: {collateral_data}")
-                return
+        if not collateral_data or "collateral" not in collateral_data:
+            raise ValueError(f"Invalid collateral data received: {collateral_data}")
 
-            # Initialize balance dictionaries
-            self._account_balances.clear()
-            self._account_available_balances.clear()
+        # Initialize balance dictionaries
+        self._account_balances.clear()
+        self._account_available_balances.clear()
 
-            # Use collateral endpoint as the single source of truth
-            # It already includes both spot and auto-lent balances
-            for asset_info in collateral_data["collateral"]:
-                symbol = asset_info["symbol"]
-                total_quantity = Decimal(asset_info["totalQuantity"])
-                available_quantity = Decimal(asset_info["availableQuantity"])
-                lend_quantity = Decimal(asset_info.get("lendQuantity", "0"))
+        # Use collateral endpoint as the single source of truth
+        # It already includes both spot and auto-lent balances
+        for asset_info in collateral_data["collateral"]:
+            symbol = asset_info["symbol"]
+            total_quantity = Decimal(asset_info["totalQuantity"])
+            available_quantity = Decimal(asset_info["availableQuantity"])
+            lend_quantity = Decimal(asset_info.get("lendQuantity", "0"))
 
-                # Total balance is totalQuantity
-                self._account_balances[symbol] = total_quantity
+            # Total balance is totalQuantity
+            self._account_balances[symbol] = total_quantity
 
-                # Lent funds are ALWAYS available for trading on Backpack
-                # When you place an order, Backpack automatically unlends what's needed
-                # So we add lendQuantity to availableQuantity to get true available balance
-                self._account_available_balances[symbol] = available_quantity + lend_quantity
-        except Exception as e:
-            self.logger().error(f"Failed to update balances: {e}", exc_info=True)
+            # Lent funds are ALWAYS available for trading on Backpack
+            # When you place an order, Backpack automatically unlends what's needed
+            # So we add lendQuantity to availableQuantity to get true available balance
+            self._account_available_balances[symbol] = available_quantity + lend_quantity
 
     # Order management
     async def _place_order(
@@ -699,32 +683,26 @@ class BackpackExchange(ExchangePyBase):
         else:  # MARKET order
             order_data["orderType"] = "Market"
 
-        try:
-            response = await self._api_post(
-                path_url=CONSTANTS.ORDER_URL,
-                data=order_data,
-                is_auth_required=True,
-                limit_id=CONSTANTS.ORDER_URL,
-            )
+        response = await self._api_post(
+            path_url=CONSTANTS.ORDER_URL,
+            data=order_data,
+            is_auth_required=True,
+            limit_id=CONSTANTS.ORDER_URL,
+        )
 
-            # Backpack returns 'id' field, not 'orderId'
-            if "id" in response:
-                exchange_order_id = response["id"]
-            elif "orderId" in response:
-                exchange_order_id = response["orderId"]
-            else:
-                self.logger().error(f"Unexpected order response format: {response}")
-                if "error" in response:
-                    raise Exception(f"Order placement failed: {response['error']}")
-                raise Exception(f"No order ID in response: {response}")
+        # Backpack returns 'id' field, not 'orderId'
+        if "id" in response:
+            exchange_order_id = response["id"]
+        elif "orderId" in response:
+            exchange_order_id = response["orderId"]
+        elif "error" in response:
+            raise ValueError(f"Order placement failed: {response['error']}")
+        else:
+            raise ValueError(f"No order ID in response: {response}")
 
-            timestamp = self.current_timestamp
+        timestamp = self.current_timestamp
 
-            return exchange_order_id, timestamp
-
-        except Exception as e:
-            self.logger().error(f"Error placing order {order_id}: {e}")
-            raise
+        return exchange_order_id, timestamp
 
     async def _place_cancel(self, order_id: str, tracked_order: InFlightOrder) -> bool:
         """Cancel an order on Backpack exchange.
@@ -747,179 +725,143 @@ class BackpackExchange(ExchangePyBase):
         else:
             cancel_data["clientId"] = self._id_mapper.get_numeric_id(tracked_order.client_order_id)
 
-        try:
-            await self._api_delete(
-                path_url=CONSTANTS.CANCEL_ORDER_URL,
-                data=cancel_data,  # Pass as body data, not params
-                is_auth_required=True,
-                limit_id=CONSTANTS.CANCEL_ORDER_URL,
-            )
+        await self._api_delete(
+            path_url=CONSTANTS.CANCEL_ORDER_URL,
+            data=cancel_data,  # Pass as body data, not params
+            is_auth_required=True,
+            limit_id=CONSTANTS.CANCEL_ORDER_URL,
+        )
 
-            return True
-
-        except Exception as e:
-            if self._is_order_not_found_during_cancelation_error(e):
-                # Order already cancelled or filled
-                return True
-            self.logger().error(f"Error canceling order {order_id}: {e}")
-            return False
+        return True
 
     async def _all_trade_updates_for_order(self, order: InFlightOrder) -> list[TradeUpdate]:
         """Get all trade updates for a specific order."""
-        try:
-            # Skip if order doesn't have an exchange ID (failed to submit)
-            if not order.exchange_order_id:
-                return []
-
-            exchange_symbol = utils.convert_to_exchange_trading_pair(order.trading_pair)
-
-            response = await self._api_get(
-                path_url=CONSTANTS.FILLS_URL,
-                params={
-                    "symbol": exchange_symbol,
-                    "orderId": order.exchange_order_id,
-                },
-                is_auth_required=True,
-                limit_id=CONSTANTS.FILLS_URL,
-            )
-
-            trade_updates: list[TradeUpdate] = []
-
-            fills_data = web_utils.normalize_response_to_list(response)
-
-            # If empty list, no fills for this order
-            if not fills_data:
-                return []
-
-            for fill in fills_data:
-                if not isinstance(fill, dict):
-                    continue
-                trade_id = fill.get("tradeId")
-                if trade_id is None:
-                    self.logger().error(f"Fill missing tradeId for order {order.client_order_id}: {fill}")
-                    continue
-                trade_update = TradeUpdate(
-                    trade_id=str(trade_id),
-                    client_order_id=order.client_order_id,
-                    exchange_order_id=order.exchange_order_id or "",  # Handle None case
-                    trading_pair=order.trading_pair,
-                    fill_timestamp=utils.parse_fill_timestamp(fill.get("timestamp")),
-                    fill_price=Decimal(fill["price"]),
-                    fill_base_amount=Decimal(fill["quantity"]),
-                    fill_quote_amount=Decimal(fill["quantity"]) * Decimal(fill["price"]),
-                    fee=self._get_trade_fee(
-                        base_currency=order.base_asset,
-                        quote_currency=order.quote_asset,
-                        order_type=order.order_type,
-                        order_side=order.trade_type,
-                        amount=Decimal(fill["quantity"]),
-                        price=Decimal(fill["price"]),
-                        fee_asset=fill.get("feeSymbol", order.quote_asset),
-                        fee_amount=Decimal(fill["fee"]) if "fee" in fill else Decimal(0),  # Fee might be 0 for maker
-                    ),
-                )
-                trade_updates.append(trade_update)
-
-            return trade_updates
-
-        except Exception as e:
-            self.logger().error(f"Error getting trade updates for order {order.client_order_id}: {e}")
+        # Skip if order doesn't have an exchange ID (failed to submit)
+        if not order.exchange_order_id:
             return []
+
+        exchange_symbol = utils.convert_to_exchange_trading_pair(order.trading_pair)
+
+        response = await self._api_get(
+            path_url=CONSTANTS.FILLS_URL,
+            params={
+                "symbol": exchange_symbol,
+                "orderId": order.exchange_order_id,
+            },
+            is_auth_required=True,
+            limit_id=CONSTANTS.FILLS_URL,
+        )
+
+        trade_updates: list[TradeUpdate] = []
+
+        fills_data = web_utils.normalize_response_to_list(response)
+
+        # If empty list, no fills for this order
+        if not fills_data:
+            return []
+
+        for fill in fills_data:
+            if not isinstance(fill, dict):
+                continue
+            trade_id = fill.get("tradeId")
+            if trade_id is None:
+                self.logger().error(f"Fill missing tradeId for order {order.client_order_id}: {fill}")
+                continue
+            trade_update = TradeUpdate(
+                trade_id=str(trade_id),
+                client_order_id=order.client_order_id,
+                exchange_order_id=order.exchange_order_id or "",  # Handle None case
+                trading_pair=order.trading_pair,
+                fill_timestamp=utils.parse_fill_timestamp(fill.get("timestamp")),
+                fill_price=Decimal(fill["price"]),
+                fill_base_amount=Decimal(fill["quantity"]),
+                fill_quote_amount=Decimal(fill["quantity"]) * Decimal(fill["price"]),
+                fee=self._get_trade_fee(
+                    base_currency=order.base_asset,
+                    quote_currency=order.quote_asset,
+                    order_type=order.order_type,
+                    order_side=order.trade_type,
+                    amount=Decimal(fill["quantity"]),
+                    price=Decimal(fill["price"]),
+                    fee_asset=fill.get("feeSymbol", order.quote_asset),
+                    fee_amount=Decimal(fill["fee"]) if "fee" in fill else Decimal(0),  # Fee might be 0 for maker
+                ),
+            )
+            trade_updates.append(trade_update)
+
+        return trade_updates
 
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         """Request current status of an order."""
-        try:
-            # If order doesn't have an exchange ID, it failed to submit
-            if not tracked_order.exchange_order_id:
-                exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
-                try:
-                    order_data = await self._api_get(
-                        path_url=CONSTANTS.ORDER_URL,
-                        params={
-                            "symbol": exchange_symbol,
-                            "clientId": self._id_mapper.get_numeric_id(tracked_order.client_order_id),
-                        },
-                        is_auth_required=True,
-                        limit_id=CONSTANTS.ORDER_URL,
-                    )
-                except Exception as e:
-                    if self._is_order_not_found_during_status_update_error(e):
-                        raise asyncio.TimeoutError() from e
-                    raise
-            else:
-                exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
+        # If order doesn't have an exchange ID, it failed to submit
+        if not tracked_order.exchange_order_id:
+            exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
+            try:
                 order_data = await self._api_get(
                     path_url=CONSTANTS.ORDER_URL,
                     params={
                         "symbol": exchange_symbol,
-                        "orderId": tracked_order.exchange_order_id,
+                        "clientId": self._id_mapper.get_numeric_id(tracked_order.client_order_id),
                     },
                     is_auth_required=True,
                     limit_id=CONSTANTS.ORDER_URL,
                 )
-
-            # Status must be in our mapping
-            if order_data["status"] not in CONSTANTS.ORDER_STATE_MAP:
-                self.logger().error(f"Unknown order status: {order_data['status']}")
-                # Return a failed order update to indicate error
-                return OrderUpdate(
-                    client_order_id=tracked_order.client_order_id,
-                    exchange_order_id=tracked_order.exchange_order_id,
-                    trading_pair=tracked_order.trading_pair,
-                    update_timestamp=self.current_timestamp,
-                    new_state=OrderState.FAILED,
-                )
-            order_state_str = CONSTANTS.ORDER_STATE_MAP[order_data["status"]]
-
-            executed_base = Decimal(str(order_data.get("executedQuantity", "0")))
-            executed_quote_raw = order_data.get("executedQuoteQuantity")
-            executed_quote = Decimal(str(executed_quote_raw)) if executed_quote_raw is not None else None
-
-            raw_price = order_data.get("price")
-            if raw_price is not None:
-                fill_price = Decimal(str(raw_price))
-            elif executed_quote is not None and executed_base > 0:
-                fill_price = executed_quote / executed_base
-            else:
-                fill_price = Decimal("0")
-
-            executed_amount_quote = (
-                executed_quote
-                if executed_quote is not None
-                else executed_base * fill_price
-            )
-
-            exchange_order_id = order_data.get("id") or order_data.get("orderId") or tracked_order.exchange_order_id
-
-            order_update = OrderUpdate(
-                client_order_id=tracked_order.client_order_id,
-                exchange_order_id=exchange_order_id,
-                trading_pair=tracked_order.trading_pair,
-                update_timestamp=self.current_timestamp,
-                new_state=OrderState[order_state_str],
-                misc_updates={
-                    "fill_price": fill_price,
-                    "executed_amount_base": executed_base,
-                    "executed_amount_quote": executed_amount_quote,
+            except Exception as e:
+                if self._is_order_not_found_during_status_update_error(e):
+                    raise asyncio.TimeoutError() from e
+                raise
+        else:
+            exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
+            order_data = await self._api_get(
+                path_url=CONSTANTS.ORDER_URL,
+                params={
+                    "symbol": exchange_symbol,
+                    "orderId": tracked_order.exchange_order_id,
                 },
+                is_auth_required=True,
+                limit_id=CONSTANTS.ORDER_URL,
             )
 
-            return order_update
+        status = order_data.get("status")
+        if status not in CONSTANTS.ORDER_STATE_MAP:
+            raise ValueError(f"Unknown order status: {status}")
+        order_state_str = CONSTANTS.ORDER_STATE_MAP[status]
 
-        except asyncio.TimeoutError:
-            raise
-        except Exception as e:
-            if self._is_order_not_found_during_status_update_error(e):
-                # Order not found, mark as cancelled
-                return OrderUpdate(
-                    client_order_id=tracked_order.client_order_id,
-                    exchange_order_id=tracked_order.exchange_order_id,
-                    trading_pair=tracked_order.trading_pair,
-                    update_timestamp=self.current_timestamp,
-                    new_state=OrderState.CANCELED,
-                )
-            self.logger().error(f"Error requesting order status for {tracked_order.client_order_id}: {e}")
-            raise
+        executed_base = Decimal(str(order_data.get("executedQuantity", "0")))
+        executed_quote_raw = order_data.get("executedQuoteQuantity")
+        executed_quote = Decimal(str(executed_quote_raw)) if executed_quote_raw is not None else None
+
+        raw_price = order_data.get("price")
+        if raw_price is not None:
+            fill_price = Decimal(str(raw_price))
+        elif executed_quote is not None and executed_base > 0:
+            fill_price = executed_quote / executed_base
+        else:
+            fill_price = Decimal("0")
+
+        if executed_quote is not None:
+            executed_amount_quote = executed_quote
+        elif executed_base == Decimal("0"):
+            executed_amount_quote = Decimal("0")
+        else:
+            executed_amount_quote = executed_base * fill_price
+
+        exchange_order_id = order_data.get("id") or order_data.get("orderId") or tracked_order.exchange_order_id
+
+        order_update = OrderUpdate(
+            client_order_id=tracked_order.client_order_id,
+            exchange_order_id=exchange_order_id,
+            trading_pair=tracked_order.trading_pair,
+            update_timestamp=self.current_timestamp,
+            new_state=OrderState[order_state_str],
+            misc_updates={
+                "fill_price": fill_price,
+                "executed_amount_base": executed_base,
+                "executed_amount_quote": executed_amount_quote,
+            },
+        )
+
+        return order_update
 
     # Fee calculation
     def _get_trade_fee(
@@ -968,36 +910,26 @@ class BackpackExchange(ExchangePyBase):
         or use a fixed fee structure. This should be fetched from the API
         when available.
         """
-        try:
-            # Try to fetch account info which may contain fee rates
-            account_info = await self._api_get(
-                path_url=CONSTANTS.ACCOUNT_URL,
-                is_auth_required=True,
-                limit_id=CONSTANTS.ACCOUNT_URL,
-            )
+        # Try to fetch account info which may contain fee rates
+        account_info = await self._api_get(
+            path_url=CONSTANTS.ACCOUNT_URL,
+            is_auth_required=True,
+            limit_id=CONSTANTS.ACCOUNT_URL,
+        )
 
-            # Extract fee information from actual Backpack API response
-            # Fee information is critical for proper order execution
-            if "spotMakerFee" not in account_info or "spotTakerFee" not in account_info:
-                self.logger().error(f"Missing fee information in account data: {account_info}")
-                return
-            spot_maker_fee = account_info["spotMakerFee"]  # Returns as integer (e.g., 8 = 0.08%)
-            spot_taker_fee = account_info["spotTakerFee"]  # Returns as integer (e.g., 10 = 0.10%)
+        # Extract fee information from actual Backpack API response
+        # Fee information is critical for proper order execution
+        if "spotMakerFee" not in account_info or "spotTakerFee" not in account_info:
+            raise ValueError(f"Missing fee information in account data: {account_info}")
+        spot_maker_fee = account_info["spotMakerFee"]  # Returns as integer (e.g., 8 = 0.08%)
+        spot_taker_fee = account_info["spotTakerFee"]  # Returns as integer (e.g., 10 = 0.10%)
 
-            if spot_maker_fee is not None and spot_taker_fee is not None:
-                # Convert from integer percentage to decimal (8 -> 0.0008)
-                self._maker_fee_percentage = Decimal(str(spot_maker_fee)) / Decimal(10000)
-                self._taker_fee_percentage = Decimal(str(spot_taker_fee)) / Decimal(10000)
-            else:
-                # If fee rates not available from API, log warning
-                # The base class should have default fees set
-                self.logger().warning(
-                    "Fee rates not available from Backpack API. Using default rates from configuration.",
-                )
+        if spot_maker_fee is None or spot_taker_fee is None:
+            raise ValueError("Fee rates not available from Backpack API.")
 
-        except Exception as e:
-            self.logger().error(f"Error updating trading fees: {e}")
-            # Continue with existing fee configuration if update fails
+        # Convert from integer percentage to decimal (8 -> 0.0008)
+        self._maker_fee_percentage = Decimal(str(spot_maker_fee)) / Decimal(10000)
+        self._taker_fee_percentage = Decimal(str(spot_taker_fee)) / Decimal(10000)
 
     def _initialize_trading_pair_symbols_from_exchange_info(self, exchange_info: dict[str, Any]):
         """Initialize trading pair symbol mappings from exchange info."""
@@ -1181,6 +1113,8 @@ class BackpackExchange(ExchangePyBase):
                 return
 
             tracked_order = self._order_tracker.fetch_order(client_order_id)
+            if tracked_order is None:
+                tracked_order = self._order_tracker.fetch_lost_order(client_order_id)
             if not tracked_order:
                 return
 
@@ -1338,6 +1272,8 @@ class BackpackExchange(ExchangePyBase):
                 return
 
             tracked_order = self._order_tracker.fetch_order(client_order_id)
+            if tracked_order is None:
+                tracked_order = self._order_tracker.fetch_lost_order(client_order_id)
             if not tracked_order:
                 return
 
@@ -1378,3 +1314,22 @@ class BackpackExchange(ExchangePyBase):
 
         except Exception:
             self.logger().error(f"Error processing trade message: {trade_msg}", exc_info=True)
+
+    async def _update_time_synchronizer(self, pass_on_non_cancelled_error: bool = False):
+        """Update the time synchronizer and propagate errors when required by tests."""
+        try:
+            local_before_ms = self._time_synchronizer._current_seconds_counter() * 1e3
+            server_time_ms = await self.web_utils.get_current_server_time(
+                throttler=self._throttler,
+                domain=self.domain,
+            )
+            local_after_ms = self._time_synchronizer._current_seconds_counter() * 1e3
+            local_server_time_pre_image_ms = (local_before_ms + local_after_ms) / 2.0
+            time_offset_ms = server_time_ms - local_server_time_pre_image_ms
+            self._time_synchronizer.add_time_offset_ms_sample(time_offset_ms)
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            if not pass_on_non_cancelled_error:
+                self.logger().exception(f"Error requesting time from {self.name_cap} server")
+                raise

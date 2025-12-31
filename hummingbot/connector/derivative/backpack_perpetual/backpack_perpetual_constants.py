@@ -323,7 +323,7 @@ MARGIN_TYPE_MAP = {
 }
 
 # Timing constants
-HEARTBEAT_TIME_INTERVAL = 30.0  # WebSocket heartbeat interval in seconds
+HEARTBEAT_TIME_INTERVAL = 60.0  # WebSocket heartbeat interval in seconds
 
 # Market configuration
 # IMPORTANT: All market-specific parameters MUST be fetched from the /api/v1/markets endpoint

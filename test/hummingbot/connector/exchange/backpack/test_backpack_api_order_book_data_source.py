@@ -117,7 +117,7 @@ class BackpackAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     async def test_get_new_order_book_successful(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         resp = self._snapshot_response()
 
@@ -142,7 +142,7 @@ class BackpackAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     async def test_get_new_order_book_raises_exception(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_api.get(regex_url, status=400)
         with self.assertRaises(IOError):
@@ -305,7 +305,7 @@ class BackpackAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     async def test_listen_for_order_book_snapshots_cancelled_when_fetching_snapshot(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_api.get(regex_url, exception=asyncio.CancelledError, repeat=True)
 
@@ -320,7 +320,7 @@ class BackpackAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         sleep_mock.side_effect = lambda _: self._create_exception_and_unlock_test_with_event(asyncio.CancelledError())
 
         url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_api.get(regex_url, exception=Exception, repeat=True)
 
@@ -336,7 +336,7 @@ class BackpackAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     async def test_listen_for_order_book_snapshots_successful(self, mock_api):
         msg_queue: asyncio.Queue = asyncio.Queue()
         url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
 
         mock_api.get(regex_url, body=json.dumps(self._snapshot_response()))
 

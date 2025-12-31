@@ -10,6 +10,7 @@ from urllib.parse import parse_qs, urlparse
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
 from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
+from hummingbot.connector.exchange.backpack.backpack_utils import INVALID_API_SECRET_MESSAGE
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
@@ -33,13 +34,10 @@ class BackpackAuth(AuthBase):
         self._private_key = None
         if api_secret:
             try:
-                private_key_bytes = base64.b64decode(api_secret)
+                private_key_bytes = base64.b64decode(api_secret, validate=True)
                 self._private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
             except Exception as e:
-                raise ValueError(
-                    "Invalid API secret format. Expected base64 encoded Ed25519 private key: "
-                    f"{e}"
-                ) from e
+                raise ValueError(INVALID_API_SECRET_MESSAGE) from e
 
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""

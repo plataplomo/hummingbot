@@ -25,6 +25,8 @@ DEFAULT_FEES = TradeFeeSchema(
     buy_percent_fee_deducted_from_returns=True,
 )
 
+INVALID_API_SECRET_MESSAGE = "Invalid API secret format. Expected base64 encoded Ed25519 private key."
+
 
 class BackpackConfigMap(BaseConnectorConfigMap):
     connector: str = "backpack"

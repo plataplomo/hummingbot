@@ -840,45 +840,39 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     # Balance and position management
     async def _update_balances(self):
         """Update account balances using collateral endpoint as single source of truth."""
-        try:
-            self.logger().debug("Fetching balances from collateral endpoint")
-            collateral_data = await self._api_get(
-                path_url=CONSTANTS.COLLATERAL_URL,
-                is_auth_required=True,
-                limit_id=CONSTANTS.COLLATERAL_URL,
-            )
-            self.logger().debug(f"Collateral data received: {collateral_data}")
+        self.logger().debug("Fetching balances from collateral endpoint")
+        collateral_data = await self._api_get(
+            path_url=CONSTANTS.COLLATERAL_URL,
+            is_auth_required=True,
+            limit_id=CONSTANTS.COLLATERAL_URL,
+        )
+        self.logger().debug(f"Collateral data received: {collateral_data}")
 
-            # Initialize balance dictionaries
-            self._account_balances.clear()
-            self._account_available_balances.clear()
+        # Initialize balance dictionaries
+        self._account_balances.clear()
+        self._account_available_balances.clear()
 
-            # Collateral endpoint includes both spot and auto-lent balances
-            if not collateral_data or "collateral" not in collateral_data:
-                self.logger().error(f"Invalid collateral data received: {collateral_data}")
-                return
+        # Collateral endpoint includes both spot and auto-lent balances
+        if not collateral_data or "collateral" not in collateral_data:
+            raise ValueError(f"Invalid collateral data received: {collateral_data}")
 
-            for asset_info in collateral_data["collateral"]:
-                symbol = asset_info["symbol"]
-                total_quantity = Decimal(str(asset_info["totalQuantity"]))
-                available_quantity = Decimal(str(asset_info["availableQuantity"]))
-                lend_quantity = Decimal(str(asset_info.get("lendQuantity", "0")))
+        for asset_info in collateral_data["collateral"]:
+            symbol = asset_info["symbol"]
+            total_quantity = Decimal(str(asset_info["totalQuantity"]))
+            available_quantity = Decimal(str(asset_info["availableQuantity"]))
+            lend_quantity = Decimal(str(asset_info.get("lendQuantity", "0")))
 
-                # Total balance is totalQuantity
-                self._account_balances[symbol] = total_quantity
+            # Total balance is totalQuantity
+            self._account_balances[symbol] = total_quantity
 
-                # Lent funds are ALWAYS available for trading on Backpack
-                # When you place an order, Backpack automatically unlends what's needed
-                # So we add lendQuantity to availableQuantity to get true available balance
-                self._account_available_balances[symbol] = available_quantity + lend_quantity
+            # Lent funds are ALWAYS available for trading on Backpack
+            # When you place an order, Backpack automatically unlends what's needed
+            # So we add lendQuantity to availableQuantity to get true available balance
+            self._account_available_balances[symbol] = available_quantity + lend_quantity
 
-            if not self._real_time_balance_update:
-                self._in_flight_orders_snapshot = {k: copy.copy(v) for k, v in self._in_flight_orders.items()}
-                self._in_flight_orders_snapshot_timestamp = self.current_timestamp
-
-        except Exception as e:
-            self.logger().error(f"Failed to update balances: {e}", exc_info=True)
-            # Don't re-raise - similar to other perp connectors
+        if not self._real_time_balance_update:
+            self._in_flight_orders_snapshot = {k: copy.copy(v) for k, v in self._in_flight_orders.items()}
+            self._in_flight_orders_snapshot_timestamp = self.current_timestamp
 
     async def _update_positions(self):
         """Update open positions.
@@ -888,50 +882,47 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         - Don't delete positions just because they're missing from one API response
         - This prevents race conditions where positions disappear temporarily
         """
-        try:
-            response = await self._api_get(
-                path_url=CONSTANTS.POSITIONS_URL,
-                is_auth_required=True,
+        response = await self._api_get(
+            path_url=CONSTANTS.POSITIONS_URL,
+            is_auth_required=True,
+        )
+
+        # Handle both list format (direct response) and object format (wrapped in "positions" key)
+        # Normalize response to list format
+        positions = web_utils.normalize_response_to_list(response)
+
+        if isinstance(response, list) and len(response) == 0:
+            for trading_pair in list(self._perpetual_trading.account_positions.keys()):
+                if not self._trading_pairs or trading_pair in self._trading_pairs:
+                    del self._perpetual_trading.account_positions[trading_pair]
+            return
+
+        # Log the number of positions received for debugging
+        if positions:
+            self.logger().debug(f"Received {len(positions)} position(s) from API")
+        else:
+            self.logger().debug("No positions returned from API (empty response)")
+
+        # Process all positions from the API
+        for position_data in positions:
+            symbol = position_data.get("symbol")
+            if symbol:
+                trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+                # Only process positions for trading pairs we're actually tracking
+                if trading_pair and self._trading_pairs and trading_pair in self._trading_pairs:
+                    self._process_position_update(position_data)
+
+        # NOTE: Unlike the previous implementation, we do NOT delete positions
+        # that are missing from the response. Positions should only be removed
+        # when they are explicitly closed (handled in _process_position_update
+        # when netQuantity == 0)
+
+        # Log current tracked positions for debugging
+        if self._perpetual_trading.account_positions:
+            self.logger().debug(
+                f"Currently tracking {len(self._perpetual_trading.account_positions)} position(s): "
+                f"{list(self._perpetual_trading.account_positions.keys())}",
             )
-
-            # Handle both list format (direct response) and object format (wrapped in "positions" key)
-            # Normalize response to list format
-            positions = web_utils.normalize_response_to_list(response)
-
-            if isinstance(response, list) and len(response) == 0:
-                for trading_pair in list(self._perpetual_trading.account_positions.keys()):
-                    if not self._trading_pairs or trading_pair in self._trading_pairs:
-                        del self._perpetual_trading.account_positions[trading_pair]
-                return
-
-            # Log the number of positions received for debugging
-            if positions:
-                self.logger().debug(f"Received {len(positions)} position(s) from API")
-            else:
-                self.logger().debug("No positions returned from API (empty response)")
-
-            # Process all positions from the API
-            for position_data in positions:
-                symbol = position_data.get("symbol")
-                if symbol:
-                    trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-                    # Only process positions for trading pairs we're actually tracking
-                    if trading_pair and self._trading_pairs and trading_pair in self._trading_pairs:
-                        self._process_position_update(position_data)
-
-            # NOTE: Unlike the previous implementation, we do NOT delete positions
-            # that are missing from the response. Positions should only be removed
-            # when they are explicitly closed (handled in _process_position_update
-            # when netQuantity == 0)
-
-            # Log current tracked positions for debugging
-            if self._perpetual_trading.account_positions:
-                self.logger().debug(
-                    f"Currently tracking {len(self._perpetual_trading.account_positions)} position(s): "
-                    f"{list(self._perpetual_trading.account_positions.keys())}",
-                )
-        except Exception as e:
-            self.logger().error(f"Error updating positions: {e}", exc_info=True)
 
     def _process_position_update(self, position_data: dict[str, Any]):
         """Process a position update from API or WebSocket."""
@@ -1238,26 +1229,25 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         numeric_client_id = self._id_mapper.get_numeric_id(tracked_order.client_order_id)
 
         # Query single open order by id or client id
-        try:
-            order_params: dict[str, Any] = {"symbol": symbol}
-            if tracked_order.exchange_order_id:
-                order_params["orderId"] = tracked_order.exchange_order_id
-            else:
-                order_params["clientId"] = numeric_client_id
+        order_params: dict[str, Any] = {"symbol": symbol}
+        if tracked_order.exchange_order_id:
+            order_params["orderId"] = tracked_order.exchange_order_id
+        else:
+            order_params["clientId"] = numeric_client_id
 
+        order_response = None
+        try:
             order_response = await self._api_get(
                 path_url=CONSTANTS.ORDER_URL,
                 params=order_params,
                 is_auth_required=True,
             )
-
-            if isinstance(order_response, dict) and order_response:
-                return self._parse_order_update(order_response, tracked_order)
         except Exception as e:
             if not self._is_order_not_found_during_status_update_error(e):
-                self.logger().warning(
-                    f"Error querying order status for {tracked_order.client_order_id}: {e}",
-                )
+                raise
+
+        if isinstance(order_response, dict) and order_response:
+            return self._parse_order_update(order_response, tracked_order)
 
         # If not in open orders, check order history
         history_response = await self._api_get(
@@ -1941,56 +1931,47 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         if self._time_synchronizer and (
             not hasattr(self._time_synchronizer, "_time_offset_ms") or not self._time_synchronizer._time_offset_ms
         ):
-            try:
-                await self._time_synchronizer.update_server_time_offset_with_time_provider(
-                    time_provider=web_utils.get_current_server_time(
-                        throttler=self._throttler,
-                        domain=self._domain,
-                    ),
-                )
-            except Exception as e:
-                self.logger().warning(f"Failed to sync time: {e}")
-
-        # Try to fetch fees from account endpoint
-        try:
-            account_info = await self._api_get(
-                path_url=CONSTANTS.ACCOUNT_URL,
-                is_auth_required=True,
-                limit_id=CONSTANTS.ACCOUNT_URL,
+            await self._time_synchronizer.update_server_time_offset_with_time_provider(
+                time_provider=web_utils.get_current_server_time(
+                    throttler=self._throttler,
+                    domain=self._domain,
+                ),
             )
 
-            # Extract and store fee rates if available
-            # Backpack returns fees in basis points (e.g., 1.8 for 0.018% or 0.00018)
-            # We need to convert to decimal (divide by 10000)
-            if "futuresMakerFee" in account_info and "futuresTakerFee" in account_info:
-                # Convert basis points to decimal (divide by 10000)
-                maker_fee = Decimal(str(account_info["futuresMakerFee"])) / Decimal(10000)
-                taker_fee = Decimal(str(account_info["futuresTakerFee"])) / Decimal(10000)
+        # Try to fetch fees from account endpoint
+        account_info = await self._api_get(
+            path_url=CONSTANTS.ACCOUNT_URL,
+            is_auth_required=True,
+            limit_id=CONSTANTS.ACCOUNT_URL,
+        )
 
-                # Store in dynamic fees dictionary
-                self._dynamic_trading_fees = {
-                    "maker": maker_fee,
-                    "taker": taker_fee,
-                }
+        # Extract and store fee rates if available
+        # Backpack returns fees in basis points (e.g., 1.8 for 0.018% or 0.00018)
+        # We need to convert to decimal (divide by 10000)
+        if "futuresMakerFee" in account_info and "futuresTakerFee" in account_info:
+            # Convert basis points to decimal (divide by 10000)
+            maker_fee = Decimal(str(account_info["futuresMakerFee"])) / Decimal(10000)
+            taker_fee = Decimal(str(account_info["futuresTakerFee"])) / Decimal(10000)
 
-                self.logger().info(
-                    f"Updated dynamic fee rates from API - Maker: {maker_fee:.4%}, Taker: {taker_fee:.4%}",
-                )
+            # Store in dynamic fees dictionary
+            self._dynamic_trading_fees = {
+                "maker": maker_fee,
+                "taker": taker_fee,
+            }
 
-                # Log the actual percentage values received
-                self.logger().debug(
-                    f"Raw fee rates from API - Maker: {account_info['futuresMakerFee']} bps, "
-                    f"Taker: {account_info['futuresTakerFee']} bps",
-                )
-            else:
-                # Clear dynamic fees to fall back to defaults
-                self._dynamic_trading_fees = {}
-                self.logger().debug("No fee rates in account info, using configured defaults")
+            self.logger().info(
+                f"Updated dynamic fee rates from API - Maker: {maker_fee:.4%}, Taker: {taker_fee:.4%}",
+            )
 
-        except Exception as e:
-            # If the endpoint doesn't exist or fails, clear dynamic fees
+            # Log the actual percentage values received
+            self.logger().debug(
+                f"Raw fee rates from API - Maker: {account_info['futuresMakerFee']} bps, "
+                f"Taker: {account_info['futuresTakerFee']} bps",
+            )
+        else:
+            # Clear dynamic fees to fall back to defaults
             self._dynamic_trading_fees = {}
-            self.logger().debug(f"Could not fetch account fee rates: {e}, using configured defaults")
+            self.logger().debug("No fee rates in account info, using configured defaults")
 
     async def _make_trading_pairs_request(self) -> Any:
         """Request trading pairs information from the exchange.

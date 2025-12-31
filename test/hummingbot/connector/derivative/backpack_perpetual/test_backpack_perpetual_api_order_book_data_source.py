@@ -138,7 +138,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
     @aioresponses()
     async def test_get_new_order_book_successful(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.ORDER_BOOK_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{re.escape(url)}")
 
         resp = self._snapshot_response()
         mock_api.get(regex_url, body=json.dumps(resp))
@@ -162,7 +162,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
     @aioresponses()
     async def test_get_new_order_book_raises_exception(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.ORDER_BOOK_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{re.escape(url)}")
 
         mock_api.get(regex_url, status=400)
         with self.assertRaises(IOError):
@@ -171,7 +171,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
     @aioresponses()
     async def test_get_snapshot_successful(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.ORDER_BOOK_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{re.escape(url)}")
         mock_response = self._snapshot_response()
         mock_api.get(regex_url, status=200, body=json.dumps(mock_response))
 
@@ -181,7 +181,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
     @aioresponses()
     async def test_get_snapshot_exception_raised(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.ORDER_BOOK_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{re.escape(url)}")
         mock_api.get(regex_url, status=400, body=json.dumps(["ERROR"]))
 
         with self.assertRaises(IOError):
@@ -190,7 +190,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
     @aioresponses()
     async def test_get_funding_info(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.MARK_PRICE_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{re.escape(url)}")
 
         mock_response = [
             {
@@ -406,7 +406,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
     @aioresponses()
     async def test_listen_for_order_book_snapshots_cancelled_when_fetching_snapshot(self, mock_api):
         url = web_utils.public_rest_url(path_url=CONSTANTS.ORDER_BOOK_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{re.escape(url)}")
 
         mock_api.get(regex_url, exception=asyncio.CancelledError, repeat=True)
 
@@ -421,7 +421,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
         sleep_mock.side_effect = lambda _: self._create_exception_and_unlock_test_with_event(asyncio.CancelledError())
 
         url = web_utils.public_rest_url(path_url=CONSTANTS.ORDER_BOOK_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{re.escape(url)}")
 
         mock_api.get(regex_url, exception=Exception, repeat=True)
 
@@ -438,7 +438,7 @@ class BackpackPerpetualAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTes
     async def test_listen_for_order_book_snapshots_successful(self, mock_api):
         msg_queue: asyncio.Queue = asyncio.Queue()
         url = web_utils.public_rest_url(path_url=CONSTANTS.ORDER_BOOK_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
+        regex_url = re.compile(f"^{re.escape(url)}")
 
         mock_api.get(regex_url, body=json.dumps(self._snapshot_response()))
 

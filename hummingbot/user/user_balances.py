@@ -71,7 +71,11 @@ class UserBalances:
         self._markets.pop(exchange, None)
         is_gateway_market = self.is_gateway_market(exchange)
         if not is_gateway_market:
-            market = UserBalances.connect_market(exchange, client_config_map, **api_details)
+            try:
+                market = UserBalances.connect_market(exchange, client_config_map, **api_details)
+            except Exception as e:
+                logging.getLogger().debug(f"Failed to initialize connector for {exchange}", exc_info=True)
+                return str(e)
             if not market:
                 return "API keys have not been added."
             err_msg = await UserBalances._update_balances(market)

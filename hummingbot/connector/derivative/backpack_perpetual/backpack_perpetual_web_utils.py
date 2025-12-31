@@ -1,6 +1,5 @@
 """Web utilities for Backpack Perpetual Exchange connector."""
 
-import asyncio
 import json
 import time
 from collections.abc import Callable
@@ -234,31 +233,25 @@ async def api_request(
     # Get REST assistant
     rest_assistant = await api_factory.get_rest_assistant()
 
-    try:
-        response = await rest_assistant.execute_request(
-            url=url,
-            method=method,
-            throttler_limit_id=limit_id,
-            params=params,
-            data=data,
-            headers=headers,
-            timeout=timeout,
-            is_auth_required=is_auth_required,
-        )
+    response = await rest_assistant.execute_request(
+        url=url,
+        method=method,
+        throttler_limit_id=limit_id,
+        params=params,
+        data=data,
+        headers=headers,
+        timeout=timeout,
+        is_auth_required=is_auth_required,
+    )
 
-        # For PATCH requests that return 200 with no content, return empty dict
-        if method == RESTMethod.PATCH and not response:
-            return {}
+    # For PATCH requests that return 200 with no content, return empty dict
+    if method == RESTMethod.PATCH and not response:
+        return {}
 
-        # Response could be str or dict from execute_request
-        if isinstance(response, str):
-            return json.loads(response) if response else {}
-        return response
-
-    except asyncio.TimeoutError as e:
-        raise OSError(f"API request timeout {method} {url}") from e
-    except Exception as e:
-        raise OSError(f"Error in API request {method} {url}: {e!s}") from e
+    # Response could be str or dict from execute_request
+    if isinstance(response, str):
+        return json.loads(response) if response else {}
+    return response
 
 
 async def api_request_dict(

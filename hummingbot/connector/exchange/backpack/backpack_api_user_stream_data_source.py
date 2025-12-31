@@ -119,5 +119,8 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         except Exception:
             self.logger().error("Error processing user stream message", exc_info=True)
 
+    async def _process_user_stream_message(self, event_message: Dict[str, Any], queue: asyncio.Queue):
+        await self._process_event_message(event_message=event_message, queue=queue)
+
     async def _on_user_stream_interruption(self, websocket_assistant: Optional[WSAssistant]):
         await super()._on_user_stream_interruption(websocket_assistant)

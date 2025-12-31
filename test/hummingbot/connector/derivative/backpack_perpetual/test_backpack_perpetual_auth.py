@@ -48,6 +48,13 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
 
         self.assertEqual(signature, self._get_expected_signature(payload))
 
+    def _get_test_payload(self) -> str:
+        expected_timestamp = str(int(self.emulated_time * 1e3))
+        return (
+            f"instruction=orderExecute&price=100&quantity=1&symbol=SOL_USDC_PERP&timestamp={expected_timestamp}"
+            f"&window={CONSTANTS.AUTH_WINDOW_MS}"
+        )
+
     def test_rest_authenticate_parameters_provided(self):
         params = {"orderId": "1", "symbol": "SOL_USDC_PERP"}
         request: RESTRequest = RESTRequest(
