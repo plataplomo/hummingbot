@@ -20,6 +20,9 @@ WSS_URLS = {
     "backpack_perpetual": "wss://ws.backpack.exchange/",
 }
 
+# Convenience alias used in tests
+REST_URL = REST_URLS[DEFAULT_DOMAIN]
+
 # Public API endpoints
 EXCHANGE_INFO_URL = "api/v1/markets"
 TICKER_URL = "api/v1/ticker"
@@ -29,12 +32,12 @@ TRADES_URL = "api/v1/trades"
 CANDLES_URL = "api/v1/klines"
 TIME_URL = "api/v1/time"
 PING_URL = "api/v1/ping"
+SERVER_TIME_PATH_URL = TIME_URL
 
 # Perpetual-specific public endpoints
 FUNDING_RATE_URL = "api/v1/fundingRates"  # Historical funding rates
 FUNDING_HISTORY_URL = "wapi/v1/history/funding"  # Personal funding history
 MARK_PRICE_URL = "api/v1/markPrices"  # Current mark prices with funding info
-INDEX_PRICE_URL = "api/v1/indexPrice"
 
 # Private API endpoints (require authentication)
 ORDER_URL = "api/v1/order"
@@ -51,9 +54,29 @@ ACCOUNT_URL = "api/v1/account"
 
 # Perpetual-specific private endpoints
 POSITIONS_URL = "api/v1/position"
-# Note: Backpack doesn't have a dedicated leverage endpoint - leverage is account-wide
-MARGIN_TYPE_URL = "api/v1/marginType"
-POSITION_MARGIN_URL = "api/v1/positionMargin"
+
+# Instruction map for signing authenticated requests
+INSTRUCTION_MAP = {
+    # Account endpoints
+    ("GET", "/api/v1/account"): "accountQuery",
+    ("PATCH", "/api/v1/account"): "accountUpdate",
+    # Capital and balance endpoints
+    ("GET", "/api/v1/capital"): "balanceQuery",
+    ("GET", "/api/v1/capital/collateral"): "collateralQuery",
+    # Position endpoints
+    ("GET", "/api/v1/position"): "positionQuery",
+    # Order management endpoints
+    ("POST", "/api/v1/order"): "orderExecute",
+    ("DELETE", "/api/v1/order"): "orderCancel",
+    ("DELETE", "/api/v1/orders"): "orderCancelAll",
+    ("GET", "/api/v1/order"): "orderQuery",
+    ("GET", "/api/v1/orders"): "orderQueryAll",
+    # Historical data endpoints
+    ("GET", "/wapi/v1/history/orders"): "orderHistoryQueryAll",
+    ("GET", "/wapi/v1/history/fills"): "fillHistoryQueryAll",
+    # Funding history endpoints
+    ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
+}
 
 # WebSocket public channels
 # Note: Public channels require symbol suffix (e.g., "depth.SOL_USDC")

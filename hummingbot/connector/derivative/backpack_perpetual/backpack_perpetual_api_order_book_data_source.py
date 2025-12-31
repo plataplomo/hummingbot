@@ -109,17 +109,20 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             is_auth_required=False,
         )
 
-        # Normalize response and get first item
         mark_price_list = utils.normalize_response_to_list(mark_prices_response)
+
         mark_price_data: dict[str, Any] = (
             mark_price_list[0] if mark_price_list and isinstance(mark_price_list[0], dict) else {}
         )
+
+        next_funding_time = mark_price_data.get("nextFundingTimestamp", 0)
+        next_funding_seconds = int(next_funding_time) / 1000 if next_funding_time else 0
 
         funding_info = FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(str(mark_price_data.get("indexPrice", 0))),
             mark_price=Decimal(str(mark_price_data.get("markPrice", 0))),
-            next_funding_utc_timestamp=mark_price_data.get("nextFundingTimestamp", 0) / 1000,
+            next_funding_utc_timestamp=next_funding_seconds,
             rate=Decimal(str(mark_price_data.get("fundingRate", 0))),
         )
 
@@ -142,7 +145,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
                 "trading_pair": trading_pair,
                 "bids": snapshot_data.get("bids", []),
                 "asks": snapshot_data.get("asks", []),
-                "update_id": int(snapshot_data.get("lastUpdateId", 0)),
+                "update_id": int(snapshot_data.get("lastUpdateId") or snapshot_data.get("timestamp", 0)),
             },
             # REST depth endpoint returns timestamp in microseconds
             timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
@@ -190,6 +193,10 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             # Fake timestamp in microseconds for consistency
             "timestamp": time.time() * 1_000_000,
         }
+
+    async def get_order_book_data(self, trading_pair: str) -> dict[str, Any]:
+        """Get order book data for a specific trading pair."""
+        return await self._request_order_book_snapshot(trading_pair)
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """Create and connect WebSocket assistant for public streams.
@@ -287,6 +294,40 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             or "bids" in inner_data
             or "asks" in inner_data
         )
+
+    def _is_order_book_diff_message(self, data: dict[str, Any]) -> bool:
+        """Check if message is an order book diff update."""
+        return self._is_order_book_message(data)
+
+    async def fetch_trading_pairs(self, domain: str | None = None) -> list[str]:
+        """Fetch available trading pairs from the exchange."""
+        response = await web_utils.api_request(
+            path=CONSTANTS.EXCHANGE_INFO_URL,
+            api_factory=self._api_factory,
+            params=None,
+            method=RESTMethod.GET,
+            is_auth_required=False,
+        )
+
+        symbols = response.get("symbols", []) if isinstance(response, dict) else []
+        trading_pairs = []
+        for symbol_info in symbols:
+            try:
+                if symbol_info.get("contractType") not in ["PERPETUAL", None] and not utils.is_perpetual_symbol(
+                    symbol_info.get("symbol", "")
+                ):
+                    continue
+                if symbol_info.get("contractType") and symbol_info.get("contractType") != "PERPETUAL":
+                    continue
+                symbol = symbol_info.get("symbol")
+                if not symbol or not utils.is_perpetual_symbol(symbol):
+                    continue
+                trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+                if trading_pair:
+                    trading_pairs.append(trading_pair)
+            except Exception:
+                continue
+        return trading_pairs
 
     def _is_trade_message(self, data: dict[str, Any]) -> bool:
         """Check if message is a trade update."""

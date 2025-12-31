@@ -28,6 +28,7 @@ WSS_URLS = {
 # Public REST API endpoints
 PING_URL = "api/v1/ping"
 TIME_URL = "api/v1/time"
+SERVER_TIME_PATH_URL = TIME_URL
 EXCHANGE_INFO_URL = "api/v1/markets"  # Fixed from "api/v1/capital"
 TICKER_URL = "api/v1/ticker"
 TICKERS_URL = "api/v1/tickers"

@@ -6,7 +6,7 @@ import asyncio
 import json
 import re
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, Dict, List, Optional, cast
 
 from bidict import bidict
 
@@ -36,9 +36,6 @@ from hummingbot.core.utils.async_utils import safe_gather
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
-if TYPE_CHECKING:
-    from hummingbot.client.config.config_helpers import ClientConfigAdapter
-
 
 class BackpackExchange(ExchangePyBase):
     """Backpack exchange connector implementing all required Hummingbot functionality.
@@ -58,19 +55,21 @@ class BackpackExchange(ExchangePyBase):
 
     def __init__(
         self,
-        client_config_map: "ClientConfigAdapter",
         backpack_api_key: str,
         backpack_api_secret: str,
-        trading_pairs: list[str] | None = None,
+        balance_asset_limit: Optional[Dict[str, Dict[str, Decimal]]] = None,
+        rate_limits_share_pct: Decimal = Decimal("100"),
+        trading_pairs: Optional[List[str]] = None,
         trading_required: bool = True,
         domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
         """Initialize Backpack exchange connector.
 
         Args:
-            client_config_map: Client configuration
             backpack_api_key: API key for authentication
             backpack_api_secret: API secret for authentication
+            balance_asset_limit: Per-asset balance limits for budget checks
+            rate_limits_share_pct: Rate limits allocation percent
             trading_pairs: List of trading pairs to track
             trading_required: Whether trading functionality is required
             domain: Exchange domain
@@ -85,7 +84,7 @@ class BackpackExchange(ExchangePyBase):
         # ID mapper for Backpack's numeric client ID requirement
         self._id_mapper = utils.BackpackIDMapper()
 
-        super().__init__(client_config_map)
+        super().__init__(balance_asset_limit, rate_limits_share_pct)
 
     async def exchange_symbol_associated_to_pair(self, trading_pair: str) -> str:
         """Convert Hummingbot trading pair format to Backpack exchange format.

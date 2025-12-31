@@ -1,13 +1,11 @@
 import asyncio
 import json
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
-from typing import List, Optional
+from typing import List
 from unittest.mock import AsyncMock, patch
 
 from bidict import bidict
 
-from hummingbot.client.config.client_config_map import ClientConfigMap
-from hummingbot.client.config.config_helpers import ClientConfigAdapter
 from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth import BackpackPerpetualAuth
 from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_derivative import BackpackPerpetualDerivative
 from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_user_stream_data_source import (
@@ -34,9 +32,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         self.listening_task = None
         self.async_tasks: List[asyncio.Task] = []
 
-        self.client_config_map = ClientConfigAdapter(ClientConfigMap())
         self.connector = BackpackPerpetualDerivative(
-            client_config_map=self.client_config_map,
             backpack_perpetual_api_key="testAPIKey",
             backpack_perpetual_api_secret="3vhqlRTtvgmZ7fqExSoGxxHpJvQBwlmuhDoYpqryw1A=",
             trading_pairs=[self.trading_pair],
@@ -45,6 +41,7 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         self.auth = BackpackPerpetualAuth(
             api_key="testAPIKey",
             api_secret="3vhqlRTtvgmZ7fqExSoGxxHpJvQBwlmuhDoYpqryw1A=",
+            time_provider=self.connector._time_synchronizer,
         )
 
         self.data_source = BackpackPerpetualUserStreamDataSource(
@@ -183,23 +180,23 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         self.assertIn("apiKey", auth_msg["params"])
         self.assertIn("signature", auth_msg["params"])
         self.assertIn("timestamp", auth_msg["params"])
-        
+
         # Test that the subscription format is correct
         # This tests the actual subscription message that would be sent
         expected_channels = [
             "account.orders",
-            "account.balances", 
+            "account.balances",
             "account.fills",
             "account.positions",
             "funding",
             "account.liquidation",
         ]
-        
+
         subscribe_msg = {
             "method": "SUBSCRIBE",
             "params": expected_channels
         }
-        
+
         # Verify the message structure is correct
         self.assertEqual("SUBSCRIBE", subscribe_msg["method"])
         self.assertIsInstance(subscribe_msg["params"], list)
@@ -210,10 +207,10 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         """Test processing of order update events."""
         # Test the _process_event method directly
         order_event = self._order_event()
-        
+
         # Process the event
         processed = self.data_source._process_event(order_event)
-        
+
         # Verify the processed message
         self.assertIsNotNone(processed)
         self.assertEqual("order", processed["type"])
@@ -225,10 +222,10 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         """Test processing of balance update events."""
         # Test the _process_event method directly
         balance_event = self._balance_event()
-        
+
         # Process the event
         processed = self.data_source._process_event(balance_event)
-        
+
         # Verify the processed message
         self.assertIsNotNone(processed)
         self.assertEqual("balance", processed["type"])
@@ -240,10 +237,10 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         """Test processing of position update events."""
         # Test the _process_event method directly
         position_event = self._position_event()
-        
+
         # Process the event
         processed = self.data_source._process_event(position_event)
-        
+
         # Verify the processed message
         self.assertIsNotNone(processed)
         self.assertEqual("position", processed["type"])
@@ -255,10 +252,10 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         """Test processing of trade fill events."""
         # Test the _process_event method directly
         fill_event = self._fill_event()
-        
+
         # Process the event
         processed = self.data_source._process_event(fill_event)
-        
+
         # Verify the processed message
         self.assertIsNotNone(processed)
         self.assertEqual("fill", processed["type"])
@@ -270,10 +267,10 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         """Test processing of funding payment events."""
         # Test the _process_event method directly
         funding_event = self._funding_event()
-        
+
         # Process the event
         processed = self.data_source._process_event(funding_event)
-        
+
         # Verify the processed message
         self.assertIsNotNone(processed)
         self.assertEqual("funding", processed["type"])
@@ -285,10 +282,10 @@ class BackpackPerpetualUserStreamDataSourceUnitTests(IsolatedAsyncioWrapperTestC
         """Test processing of liquidation warning events."""
         # Test the _process_event method directly
         liquidation_event = self._liquidation_event()
-        
+
         # Process the event
         processed = self.data_source._process_event(liquidation_event)
-        
+
         # Verify the processed message
         self.assertIsNotNone(processed)
         self.assertEqual("liquidation", processed["type"])

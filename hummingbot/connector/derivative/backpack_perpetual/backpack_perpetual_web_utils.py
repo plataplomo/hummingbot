@@ -4,14 +4,15 @@ import asyncio
 import json
 import time
 from collections.abc import Callable
-from typing import Any, TypeVar
+from typing import Any, Optional, TypeVar
 
 from hummingbot.connector.derivative.backpack_perpetual import backpack_perpetual_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
 from hummingbot.core.api_throttler.async_throttler import AsyncThrottler
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest
+from hummingbot.core.web_assistant.rest_pre_processors import RESTPreProcessorBase
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 from hummingbot.core.web_assistant.ws_assistant import WSAssistant
 from hummingbot.logger import HummingbotLogger
@@ -20,15 +21,44 @@ from hummingbot.logger import HummingbotLogger
 T = TypeVar("T")
 
 
-_bpwu_logger: HummingbotLogger | None = None
+_bpwu_logger: Optional[HummingbotLogger] = None
+
+
+class HeadersContentRESTPreProcessor(RESTPreProcessorBase):
+    async def pre_process(self, request: RESTRequest) -> RESTRequest:
+        request.headers = request.headers or {}
+        request.headers["Content-Type"] = "application/json"
+        return request
+
+
+def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
+    """
+    Creates a full URL for provided public REST endpoint
+    :param path_url: a public REST endpoint
+    :param domain: the Backpack domain to connect to
+    :return: the full URL to the endpoint
+    """
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    return base_url + path_url
+
+
+def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
+    """
+    Creates a full URL for provided private REST endpoint
+    :param path_url: a private REST endpoint
+    :param domain: the Backpack domain to connect to
+    :return: the full URL to the endpoint
+    """
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    return base_url + path_url
 
 
 def build_api_factory(
-    throttler: AsyncThrottler | None = None,
-    time_synchronizer: TimeSynchronizer | None = None,
+    throttler: Optional[AsyncThrottler] = None,
+    time_synchronizer: Optional[TimeSynchronizer] = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
-    time_provider: Callable | None = None,
-    auth: AuthBase | None = None,
+    time_provider: Optional[Callable] = None,
+    auth: Optional[AuthBase] = None,
 ) -> WebAssistantsFactory:
     """Build a WebAssistantsFactory for Backpack Perpetual.
 
@@ -56,6 +86,7 @@ def build_api_factory(
         auth=auth,
         rest_pre_processors=[
             TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+            HeadersContentRESTPreProcessor(),
         ],
     )
 
@@ -63,9 +94,8 @@ def build_api_factory(
 
 
 def build_api_factory_without_time_synchronizer_pre_processor(
-    throttler: AsyncThrottler | None = None,
-    domain: str = CONSTANTS.DEFAULT_DOMAIN,
-    auth: AuthBase | None = None,
+    throttler: Optional[AsyncThrottler] = None,
+    auth: Optional[AuthBase] = None,
 ) -> WebAssistantsFactory:
     """Build a WebAssistantsFactory without time synchronization.
 
@@ -73,7 +103,6 @@ def build_api_factory_without_time_synchronizer_pre_processor(
 
     Args:
         throttler: Rate limiter for API requests
-        domain: Exchange domain
         auth: Authentication handler
 
     Returns:
@@ -90,89 +119,70 @@ def build_api_factory_without_time_synchronizer_pre_processor(
 
 
 def create_throttler() -> AsyncThrottler:
-    """Create a throttler with Backpack Perpetual rate limits.
-
-    Returns:
-        Configured AsyncThrottler instance
-    """
     return AsyncThrottler(CONSTANTS.RATE_LIMITS)
 
 
 async def get_current_server_time(
-    throttler: AsyncThrottler | None = None,
+    throttler: Optional[AsyncThrottler] = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
 ) -> float:
-    """Get current server time from Backpack.
-
-    Args:
-        throttler: Rate limiter for API requests
-        domain: Exchange domain
-
-    Returns:
-        Server timestamp in milliseconds (for TimeSynchronizer compatibility)
-    """
     throttler = throttler or create_throttler()
-
-    # Create a simple REST assistant without auth
-    api_factory = build_api_factory_without_time_synchronizer_pre_processor(
-        throttler=throttler,
-        domain=domain,
-    )
-
+    api_factory = build_api_factory_without_time_synchronizer_pre_processor(throttler=throttler)
     rest_assistant = await api_factory.get_rest_assistant()
+    response = await rest_assistant.execute_request(
+        url=public_rest_url(path_url=CONSTANTS.SERVER_TIME_PATH_URL, domain=domain),
+        method=RESTMethod.GET,
+        throttler_limit_id=CONSTANTS.SERVER_TIME_PATH_URL,
+    )
+    if isinstance(response, dict):
+        server_time = response.get("serverTime", response.get("timestamp"))
+        if server_time is not None:
+            return float(server_time)
+    if isinstance(response, (int, float)):
+        return float(response)
+    if isinstance(response, str):
+        try:
+            return float(response)
+        except ValueError:
+            pass
+    return time.time() * 1e3
 
-    # Query server time endpoint
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    url = f"{base_url}{CONSTANTS.TIME_URL}"
 
-    async with throttler.execute_task(CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID):
-        response = await rest_assistant.execute_request(
-            url=url,
-            method=RESTMethod.GET,
-            throttler_limit_id=CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID,
-        )
+def endpoint_from_message(message: dict[str, Any]) -> Optional[str]:
+    endpoint = None
+    if "request" in message:
+        message = message["request"]
+    if isinstance(message, dict):
+        if "op" in message:
+            endpoint = message["op"]
+        elif "stream" in message:
+            endpoint = message["stream"]
+        elif "type" in message:
+            endpoint = message["type"]
+    return endpoint
 
-        # Response could be dict or string from execute_request
-        if isinstance(response, str):
-            # Try to parse as JSON if it's a string
-            try:
-                parsed = json.loads(response)
-                # Check if it's a numeric response
-                if isinstance(parsed, (int, float)):
-                    # Already in milliseconds, return as-is
-                    return float(parsed)
-                elif isinstance(parsed, dict):
-                    server_time_ms = parsed.get("serverTime", parsed.get("timestamp"))
-                    if server_time_ms is None:
-                        raise OSError(f"No time field in response: {parsed}")
-                    return float(server_time_ms)
-            except json.JSONDecodeError:
-                pass
-        elif isinstance(response, dict):
-            server_time_ms = response.get("serverTime", response.get("timestamp"))
-            if server_time_ms is None:
-                raise OSError(f"No time field in response: {response}")
-            # TimeSynchronizer expects milliseconds, don't divide
-            return float(server_time_ms)
 
-        # Fallback to current time in milliseconds
-        return time.time() * 1000
+def payload_from_message(message: dict[str, Any]) -> Any:
+    payload = message
+    if "data" in message:
+        payload = message["data"]
+    return payload
 
 
 async def api_request(
     path: str,
-    api_factory: WebAssistantsFactory | None = None,
-    throttler: AsyncThrottler | None = None,
-    time_synchronizer: TimeSynchronizer | None = None,
+    api_factory: Optional[WebAssistantsFactory] = None,
+    throttler: Optional[AsyncThrottler] = None,
+    time_synchronizer: Optional[TimeSynchronizer] = None,
     domain: str = CONSTANTS.DEFAULT_DOMAIN,
-    params: dict[str, Any] | None = None,
-    data: dict[str, Any] | None = None,
+    params: Optional[dict[str, Any]] = None,
+    data: Optional[dict[str, Any]] = None,
     method: RESTMethod = RESTMethod.GET,
     is_auth_required: bool = False,
     return_err: bool = False,
-    limit_id: str | None = None,
+    limit_id: Optional[str] = None,
     timeout: float = CONSTANTS.REQUEST_TIMEOUT,
-    headers: dict[str, str] | None = None,
+    headers: Optional[dict[str, str]] = None,
 ) -> Any:
     """Make an API request to Backpack Perpetual.
 
@@ -321,34 +331,6 @@ def normalize_response_to_list(response: Any) -> list[Any]:
         return [response]
     else:
         return []
-
-
-def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """Get the full URL for a public REST endpoint.
-
-    Args:
-        path_url: API endpoint path
-        domain: Exchange domain
-
-    Returns:
-        Full URL for the public endpoint
-    """
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    return f"{base_url}{path_url}"
-
-
-def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """Get the full URL for a private REST endpoint.
-
-    Args:
-        path_url: API endpoint path
-        domain: Exchange domain
-
-    Returns:
-        Full URL for the private endpoint
-    """
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    return f"{base_url}{path_url}"
 
 
 def get_rest_url_for_endpoint(

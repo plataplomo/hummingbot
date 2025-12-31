@@ -5,14 +5,11 @@ Compatible with Python 3.10 and Hummingbot patterns.
 from __future__ import annotations
 
 import base64
-import json
-import time
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
-from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
@@ -33,41 +30,21 @@ class BackpackAuth(AuthBase):
         self.api_secret = api_secret
         self.time_provider = time_provider
 
-        # Load and validate the private key
-        try:
-            private_key_bytes = base64.b64decode(api_secret)
-            self._private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
-        except Exception as e:
-            raise ValueError(f"Invalid API secret format. Expected base64 encoded Ed25519 private key: {e}") from e
-
-        # Initialize instruction mapping for Backpack REST API endpoints
-        self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
-            # Account endpoints
-            ("GET", "/api/v1/account"): "accountQuery",
-            # Capital and Balance endpoints
-            ("GET", "/api/v1/capital"): "balanceQuery",
-            ("GET", "/api/v1/capital/collateral"): "collateralQuery",
-            # Order Management endpoints
-            ("POST", "/api/v1/order"): "orderExecute",
-            ("DELETE", "/api/v1/order"): "orderCancel",
-            ("DELETE", "/api/v1/orders"): "orderCancelAll",
-            ("GET", "/api/v1/order"): "orderQuery",
-            ("GET", "/api/v1/orders"): "orderQueryAll",
-            # Historical Data endpoints (api/v1)
-            ("GET", "/api/v1/history/orders"): "orderHistoryQueryAll",
-            ("GET", "/api/v1/history/fills"): "fillHistoryQueryAll",
-            # Historical Data endpoints (wapi/v1) - private endpoints
-            ("GET", "/wapi/v1/history/orders"): "orderHistoryQueryAll",
-            ("GET", "/wapi/v1/history/fills"): "fillHistoryQueryAll",
-            # Trading Data endpoints
-            ("GET", "/api/v1/trades/history"): "fillHistoryQueryAll",
-            ("GET", "/api/v1/fills"): "fillHistoryQueryAll",
-        }
+        self._private_key = None
+        if api_secret:
+            # Load and validate the private key
+            try:
+                private_key_bytes = base64.b64decode(api_secret)
+                self._private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
+            except Exception as e:
+                raise ValueError(
+                    "Invalid API secret format. Expected base64 encoded Ed25519 private key: "
+                    f"{e}"
+                ) from e
 
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
-
-        return int(time.time() * 1000)
+        return int(self.time_provider.time() * 1e3)
 
     def _generate_signature(self, payload: str) -> str:
         """Generate Ed25519 signature for the given payload.
@@ -78,34 +55,13 @@ class BackpackAuth(AuthBase):
         Returns:
             Base64 encoded signature
         """
+        if self._private_key is None:
+            raise ValueError("API secret is required to generate signed requests.")
         try:
             signature_bytes = self._private_key.sign(payload.encode("utf-8"))
             return base64.b64encode(signature_bytes).decode("utf-8")
         except Exception as e:
             raise ValueError(f"Failed to generate signature: {e}") from e
-
-    def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
-        """Get the instruction string for a given method and path.
-
-        Args:
-            method: HTTP method (GET, POST, etc.)
-            path: API endpoint path
-
-        Returns:
-            Instruction string for signing
-        """
-        # Remove query parameters from path for lookup
-        lookup_path = path.split("?", maxsplit=1)[0] if "?" in path else path
-
-        # Try exact match first
-        instruction = self.INSTRUCTION_MAP.get((method.upper(), lookup_path))
-
-        if not instruction:
-            # For unknown endpoints, generate a default instruction
-            # This helps with new endpoints that might not be mapped yet
-            instruction = f"{method.lower()}Query"
-
-        return instruction
 
     def _build_signature_payload(
         self,
@@ -114,61 +70,19 @@ class BackpackAuth(AuthBase):
         path: str,
         params: dict[str, Any] | None = None,
         body: str | None = None,
-        window: str = "5000",
+        data: str | None = None,
     ) -> str:
-        """Build the payload string for signing using instruction-based format.
-
-        Backpack signature format:
-        instruction=<instruction>&<sorted_params>&timestamp=<timestamp>&window=<window>
-
-        Args:
-            timestamp: Request timestamp as string
-            method: HTTP method (GET, POST, etc.)
-            path: Request path
-            params: Query parameters (for GET) or parsed body parameters
-            body: Request body for POST/PUT requests (JSON string)
-            window: Time window for request validity
-
-        Returns:
-            Formatted payload string for signing
-        """
-        # Get the instruction for this endpoint
-        instruction = self._get_instruction_for_endpoint(method, path)
-
-        # Start building the payload
-        payload_parts = [f"instruction={instruction}"]
-
-        # Handle parameters based on method
-        if method.upper() == "GET" and params:
-            # For GET requests, add query parameters
+        """Build the payload string for signing using timestamp+method+path format."""
+        method = method.upper()
+        if body is None and data is not None:
+            body = data
+        if method == "GET" and params:
             sorted_params = sorted(params.items())
-            for key, value in sorted_params:
-                if value is not None:
-                    # Convert booleans to lowercase strings
-                    formatted_value = value
-                    if isinstance(value, bool):
-                        formatted_value = "true" if value else "false"
-                    payload_parts.append(f"{key}={formatted_value}")
-        elif method.upper() in ["POST", "PUT", "DELETE"] and body:
-            # For POST/PUT/DELETE, parse JSON body and add as parameters
-            try:
-                body_dict = json.loads(body) if isinstance(body, str) else body
-                sorted_params = sorted(body_dict.items())
-                for key, value in sorted_params:
-                    if value is not None:
-                        # Convert booleans to lowercase strings
-                        formatted_value = value
-                        if isinstance(value, bool):
-                            formatted_value = "true" if value else "false"
-                        payload_parts.append(f"{key}={formatted_value}")
-            except (json.JSONDecodeError, TypeError):
-                # If body is not JSON, skip parameter extraction
-                pass
-
-        # Add timestamp and window
-        payload_parts.extend((f"timestamp={timestamp}", f"window={window}"))
-
-        return "&".join(payload_parts)
+            query = "&".join(f"{key}={value}" for key, value in sorted_params)
+            return f"{timestamp}{method}{path}?{query}"
+        if body:
+            return f"{timestamp}{method}{path}{body}"
+        return f"{timestamp}{method}{path}"
 
     def _generate_auth_headers(
         self,
@@ -185,14 +99,13 @@ class BackpackAuth(AuthBase):
         timestamp = str(self._get_timestamp())
         window = "5000"
 
-        # Build signature payload using instruction-based format
+        # Build signature payload using timestamp+method+path format
         signature_payload = self._build_signature_payload(
             timestamp=timestamp,
             method=method,
             path=path,
             params=params,
             body=body,
-            window=window,
         )
 
         # Generate signature
@@ -294,21 +207,17 @@ class BackpackAuth(AuthBase):
             Authentication message for WebSocket
         """
         timestamp = str(self._get_timestamp())
-        window = str(CONSTANTS.AUTH_WINDOW_MS)
+        window = 5000
 
-        # Build auth payload for WebSocket
-        # Based on testing, Backpack expects the signature to sign this format
-        auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
+        auth_payload = f"{timestamp}GET/ws/auth"
         signature = self._generate_signature(auth_payload)
 
-        # Backpack WebSocket auth: params array contains [apiKey, signature, timestamp, window]
-        # This is sent as the first SUBSCRIBE message to authenticate
         return {
-            "method": "SUBSCRIBE",
-            "params": [
-                self.api_key,    # API key
-                signature,       # signature (base64 encoded)
-                timestamp,       # timestamp in milliseconds
-                window,          # window in milliseconds
-            ],
+            "method": "authenticate",
+            "params": {
+                "apiKey": self.api_key,
+                "timestamp": timestamp,
+                "signature": signature,
+                "window": window,
+            },
         }

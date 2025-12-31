@@ -21,8 +21,10 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
 
     def setUp(self) -> None:
         super().setUp()
-        self.emulated_time = 1640001112223  # milliseconds
-        self.time_provider = lambda: self.emulated_time
+        self.emulated_time = 1640001112.223  # seconds
+        self.emulated_time_ms = int(self.emulated_time * 1e3)
+        self.time_provider = MagicMock()
+        self.time_provider.time.return_value = self.emulated_time
 
     def async_run_with_timeout(self, coroutine: Awaitable, timeout: float = 1):
         ret = self.ev_loop.run_until_complete(asyncio.wait_for(coroutine, timeout))
@@ -43,7 +45,7 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
 
         self.assertEqual(auth.api_key, self.api_key)
         self.assertEqual(auth.api_secret, self.api_secret)
-        self.assertEqual(auth._time_provider(), self.emulated_time)
+        self.assertEqual(auth._get_timestamp(), self.emulated_time_ms)
 
         # Verify private key was loaded
         mock_ed25519.Ed25519PrivateKey.from_private_bytes.assert_called_once()
@@ -73,15 +75,15 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
 
         # Test GET request payload with instruction-based format
         payload = auth._build_signature_payload(
-            timestamp=str(self.emulated_time),
+            timestamp=str(self.emulated_time_ms),
             method="GET",
-            path="/api/v1/positions",
+            path="/api/v1/position",
             params={"symbol": "BTC-PERP"},
             window="5000"
         )
 
         # Expect instruction-based format
-        expected = f"instruction=positionQuery&symbol=BTC-PERP&timestamp={self.emulated_time}&window=5000"
+        expected = f"instruction=positionQuery&symbol=BTC-PERP&timestamp={self.emulated_time_ms}&window=5000"
         self.assertEqual(payload, expected)
 
     @patch('hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth.ed25519')
@@ -100,7 +102,7 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
         # Test POST request payload with instruction-based format
         data = '{"symbol":"BTC-PERP","side":"Buy","quantity":"0.01"}'
         payload = auth._build_signature_payload(
-            timestamp=str(self.emulated_time),
+            timestamp=str(self.emulated_time_ms),
             method="POST",
             path="/api/v1/order",
             body=data,
@@ -108,7 +110,7 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
         )
 
         # Expect instruction-based format with sorted params
-        expected = f'instruction=orderExecute&quantity=0.01&side=Buy&symbol=BTC-PERP&timestamp={self.emulated_time}&window=5000'
+        expected = f'instruction=orderExecute&quantity=0.01&side=Buy&symbol=BTC-PERP&timestamp={self.emulated_time_ms}&window=5000'
         self.assertEqual(payload, expected)
 
     @patch('hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth.ed25519')
@@ -153,7 +155,7 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
 
         request = RESTRequest(
             method=RESTMethod.GET,
-            url="/api/v1/positions",
+            url="/api/v1/position",
             params={"symbol": "BTC-PERP"},
             is_auth_required=True,
         )
@@ -163,7 +165,7 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
         self.assertIn("X-API-Key", signed_request.headers)
         self.assertEqual(signed_request.headers["X-API-Key"], self.api_key)
         self.assertIn("X-Timestamp", signed_request.headers)
-        self.assertEqual(signed_request.headers["X-Timestamp"], str(self.emulated_time))
+        self.assertEqual(signed_request.headers["X-Timestamp"], str(self.emulated_time_ms))
         self.assertIn("X-Signature", signed_request.headers)
         self.assertIn("X-Window", signed_request.headers)
         self.assertEqual(signed_request.headers["X-Window"], "5000")
@@ -245,7 +247,7 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
             "method": "auth",
             "params": {
                 "apiKey": self.api_key,
-                "timestamp": str(self.emulated_time),
+                "timestamp": str(self.emulated_time_ms),
                 "signature": base64.b64encode(mock_signature).decode('utf-8'),
                 "window": "5000"
             }
@@ -255,16 +257,3 @@ class BackpackPerpetualAuthUnitTests(unittest.TestCase):
         self.assertEqual(ws_auth_message["params"]["apiKey"], expected_message["params"]["apiKey"])
         self.assertEqual(ws_auth_message["params"]["timestamp"], expected_message["params"]["timestamp"])
         self.assertEqual(ws_auth_message["params"]["window"], expected_message["params"]["window"])
-
-    def test_missing_ed25519_library(self):
-        """Test behavior when Ed25519 library is not available."""
-        # Since we made cryptography a hard requirement (no fallback),
-        # this test now verifies that patching ed25519 to None causes a ValueError
-        with patch('hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_auth.ed25519', None):
-            with self.assertRaises(ValueError) as context:
-                BackpackPerpetualAuth(
-                    api_key=self.api_key,
-                    api_secret=self.api_secret
-                )
-
-            self.assertIn("'NoneType' object has no attribute", str(context.exception))

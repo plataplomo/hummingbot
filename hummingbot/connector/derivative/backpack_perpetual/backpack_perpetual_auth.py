@@ -5,7 +5,6 @@ Reuses the same authentication logic as the spot connector.
 import base64
 import json
 import logging
-import time
 from typing import Any, cast
 from urllib.parse import parse_qs, urlparse
 
@@ -56,41 +55,21 @@ class BackpackPerpetualAuth(AuthBase):
         self.api_secret = api_secret
         self.time_provider = time_provider
 
-        # Load and validate the private key
-        try:
-            private_key_bytes = base64.b64decode(api_secret)
-            self._private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
-        except Exception as e:
-            raise ValueError(f"Invalid API secret format. Expected base64 encoded Ed25519 private key: {e}") from e
-
-        # Initialize instruction mapping for Backpack REST API endpoints
-        self.INSTRUCTION_MAP: dict[tuple[str, str], str] = {
-            # Account endpoints
-            ("GET", "/api/v1/account"): "accountQuery",
-            ("PATCH", "/api/v1/account"): "accountUpdate",
-            # Capital and Balance endpoints
-            ("GET", "/api/v1/capital"): "balanceQuery",
-            ("GET", "/api/v1/capital/collateral"): "collateralQuery",
-            # Position endpoints for perpetuals
-            ("GET", "/api/v1/position"): "positionQuery",
-            # Order Management endpoints
-            ("POST", "/api/v1/order"): "orderExecute",
-            ("DELETE", "/api/v1/order"): "orderCancel",
-            ("DELETE", "/api/v1/orders"): "orderCancelAll",
-            ("GET", "/api/v1/order"): "orderQuery",
-            ("GET", "/api/v1/orders"): "orderQueryAll",
-            # Historical Data endpoints (using wapi for history)
-            ("GET", "/wapi/v1/history/orders"): "orderHistoryQueryAll",
-            ("GET", "/wapi/v1/history/fills"): "fillHistoryQueryAll",
-            # Funding history endpoints (for perpetuals)
-            ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
-        }
+        self._private_key = None
+        if api_secret:
+            # Load and validate the private key
+            try:
+                private_key_bytes = base64.b64decode(api_secret)
+                self._private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
+            except Exception as e:
+                raise ValueError(
+                    "Invalid API secret format. Expected base64 encoded Ed25519 private key: "
+                    f"{e}"
+                ) from e
 
     def _get_timestamp(self) -> int:
         """Get current timestamp in milliseconds."""
-        # Backpack expects current Unix timestamp in milliseconds
-        # Just like the spot connector, we use time.time() directly
-        return int(time.time() * 1000)
+        return int(self.time_provider.time() * 1e3)
 
     def _generate_signature(self, payload: str) -> str:
         """Generate Ed25519 signature for the given payload.
@@ -101,6 +80,8 @@ class BackpackPerpetualAuth(AuthBase):
         Returns:
             Base64 encoded signature
         """
+        if self._private_key is None:
+            raise ValueError("API secret is required to generate signed requests.")
         try:
             signature = self._private_key.sign(payload.encode("utf-8"))
             return base64.b64encode(signature).decode("utf-8")
@@ -121,7 +102,7 @@ class BackpackPerpetualAuth(AuthBase):
         lookup_path = path.split("?", maxsplit=1)[0] if "?" in path else path
 
         # Try exact match first
-        instruction = self.INSTRUCTION_MAP.get((method.upper(), lookup_path))
+        instruction = CONSTANTS.INSTRUCTION_MAP.get((method.upper(), lookup_path))
 
         if not instruction:
             # For unknown endpoints, generate a default instruction
@@ -206,7 +187,7 @@ class BackpackPerpetualAuth(AuthBase):
             Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
         """
         timestamp = str(self._get_timestamp())
-        window = str(CONSTANTS.AUTH_WINDOW_MS)
+        window = "5000"
 
         # Build signature payload using instruction-based format
         signature_payload = self._build_signature_payload(
@@ -318,14 +299,12 @@ class BackpackPerpetualAuth(AuthBase):
         auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
         signature = self._generate_signature(auth_payload)
 
-        # Backpack WebSocket auth: params array contains [apiKey, signature, timestamp, window]
-        # This is sent as the first SUBSCRIBE message to authenticate
         return {
-            "method": "SUBSCRIBE",
-            "params": [
-                self.api_key,    # API key
-                signature,       # signature (base64 encoded)
-                timestamp,       # timestamp in milliseconds
-                window,          # window in milliseconds
-            ],
+            "method": "auth",
+            "params": {
+                "apiKey": self.api_key,
+                "timestamp": timestamp,
+                "signature": signature,
+                "window": window,
+            },
         }

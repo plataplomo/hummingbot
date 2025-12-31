@@ -135,7 +135,9 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     """
     base, quote = split_trading_pair(hb_trading_pair)
 
-    # All perpetuals use full format with quote currency
+    # Backpack uses BTC_PERP when quote is USDC; otherwise include quote
+    if quote.upper() == "USDC":
+        return f"{base}_PERP"
     return f"{base}_{quote}_PERP"
 
 

@@ -6,7 +6,7 @@ from collections.abc import Callable
 from decimal import Decimal
 from test.isolated_asyncio_wrapper_test_case import IsolatedAsyncioWrapperTestCase
 from typing import Any, Dict, List, Optional
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pandas as pd
 from aioresponses.core import aioresponses
@@ -14,19 +14,14 @@ from bidict import bidict
 
 import hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_constants as CONSTANTS
 import hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_web_utils as web_utils
-from hummingbot.client.config.client_config_map import ClientConfigMap
-from hummingbot.client.config.config_helpers import ClientConfigAdapter
 from hummingbot.connector.derivative.backpack_perpetual.backpack_perpetual_derivative import BackpackPerpetualDerivative
 from hummingbot.connector.derivative.position import Position
 from hummingbot.connector.test_support.network_mocking_assistant import NetworkMockingAssistant
 from hummingbot.connector.trading_rule import TradingRule
-from hummingbot.connector.utils import get_new_client_order_id
 from hummingbot.core.data_type.common import OrderType, PositionAction, PositionMode, PositionSide, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState
-from hummingbot.core.data_type.limit_order import LimitOrder
-from hummingbot.core.data_type.trade_fee import TokenAmount
 from hummingbot.core.event.event_logger import EventLogger
-from hummingbot.core.event.events import MarketEvent, OrderFilledEvent
+from hummingbot.core.event.events import MarketEvent
 from hummingbot.core.network_iterator import NetworkStatus
 
 
@@ -55,13 +50,10 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
         self.ws_sent_messages = []
         self.ws_incoming_messages = asyncio.Queue()
         self.resume_test_event = asyncio.Event()
-        self.client_config_map = ClientConfigAdapter(ClientConfigMap())
-
         # Use a valid base64 encoded test key (32 bytes)
         test_secret = base64.b64encode(b"0" * 32).decode()
 
         self.exchange = BackpackPerpetualDerivative(
-            client_config_map=self.client_config_map,
             backpack_perpetual_api_key="testAPIKey",
             backpack_perpetual_api_secret=test_secret,
             trading_pairs=[self.trading_pair],
@@ -155,12 +147,6 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
 
     def _simulate_trading_rules_initialized(self):
         """Initialize trading pair symbols and trading rules for testing."""
-        from decimal import Decimal
-
-        from bidict import bidict
-
-        from hummingbot.connector.trading_rule import TradingRule
-
         # Set the trading pair symbol map
         self.exchange._set_trading_pair_symbol_map(bidict({self.symbol: self.trading_pair}))
 
@@ -1223,15 +1209,6 @@ class BackpackPerpetualDerivativeUnitTest(IsolatedAsyncioWrapperTestCase):
     @aioresponses()
     def test_account_position_updated_on_positions_update(self, mock_api):
         """Test that existing positions are updated correctly."""
-        # Create initial position
-        initial_position = {
-            "symbol": self.ex_trading_pair,
-            "side": "LONG",
-            "size": "0.1",
-            "entryPrice": "50000.00",
-            "markPrice": "50000.00",
-        }
-
         # Set the position using the perpetual trading object
         position_key = self.exchange._perpetual_trading.position_key(self.trading_pair)
         self.exchange._perpetual_trading._account_positions[position_key] = Position(

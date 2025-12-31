@@ -207,20 +207,25 @@ def is_exchange_information_valid(exchange_info: dict) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    if not isinstance(exchange_info, dict) or "data" not in exchange_info:
+    if not isinstance(exchange_info, dict):
         return False
 
-    # Validate symbols structure
-    symbols = exchange_info["data"]  # Already checked in earlier validation
-    if not isinstance(symbols, list):
+    symbols = None
+    required_symbol_fields = None
+
+    if "symbols" in exchange_info:
+        symbols = exchange_info.get("symbols")
+        required_symbol_fields = ["symbol", "baseAsset", "quoteAsset", "status"]
+    elif "data" in exchange_info:
+        symbols = exchange_info.get("data")
+        required_symbol_fields = ["symbol", "baseSymbol", "quoteSymbol", "marketType"]
+    else:
         return False
 
-    if len(symbols) == 0:
+    if not isinstance(symbols, list) or len(symbols) == 0:
         return False
 
-    # Check first symbol has required fields (new API structure)
     first_symbol = symbols[0]
-    required_symbol_fields = ["symbol", "baseSymbol", "quoteSymbol", "marketType"]
     return all(field in first_symbol for field in required_symbol_fields)
 
 

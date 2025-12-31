@@ -6,7 +6,7 @@ import math
 import time
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, cast
+from typing import Any, Dict, List, Optional, cast
 
 from hummingbot.connector.client_order_tracker import ClientOrderTracker
 from hummingbot.connector.constants import s_decimal_NaN
@@ -42,9 +42,6 @@ from hummingbot.core.utils.estimate_fee import build_perpetual_trade_fee
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
 
-if TYPE_CHECKING:
-    from hummingbot.client.config.config_helpers import ClientConfigAdapter
-
 
 class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     """Backpack perpetual futures exchange connector implementing derivatives trading.
@@ -64,17 +61,19 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     def __init__(
         self,
-        client_config_map: "ClientConfigAdapter",
-        backpack_perpetual_api_key: str | None = None,
-        backpack_perpetual_api_secret: str | None = None,
-        trading_pairs: list[str] | None = None,
+        balance_asset_limit: Optional[Dict[str, Dict[str, Decimal]]] = None,
+        rate_limits_share_pct: Decimal = Decimal("100"),
+        backpack_perpetual_api_key: str = None,
+        backpack_perpetual_api_secret: str = None,
+        trading_pairs: Optional[List[str]] = None,
         trading_required: bool = True,
         domain: str = CONSTANTS.DEFAULT_DOMAIN,
     ):
         """Initialize Backpack perpetual derivative connector.
 
         Args:
-            client_config_map: Client configuration
+            balance_asset_limit: Per-asset balance limits for budget checks
+            rate_limits_share_pct: Rate limits allocation percent
             backpack_perpetual_api_key: API key for authentication
             backpack_perpetual_api_secret: API secret for authentication
             trading_pairs: List of trading pairs to track
@@ -96,7 +95,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._funding_info_cache: dict[str, tuple[FundingInfo, float]] = {}  # Cache funding info with timestamp
         # Initialize ID mapper for client order IDs
         self._id_mapper = utils.BackpackIDMapper()
-        super().__init__(client_config_map)
+        super().__init__(balance_asset_limit, rate_limits_share_pct)
 
     # Required properties from PerpetualDerivativePyBase
     @property
@@ -114,9 +113,6 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     @property
     def authenticator(self) -> BackpackPerpetualAuth:
-        if self.backpack_perpetual_api_key is None or self.backpack_perpetual_api_secret is None:
-            raise ValueError("API key and secret are required for authentication")
-
         return BackpackPerpetualAuth(
             self.backpack_perpetual_api_key,
             self.backpack_perpetual_api_secret,
@@ -219,6 +215,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         return [OrderType.LIMIT, OrderType.LIMIT_MAKER, OrderType.MARKET]
 
+    @property
     def supported_position_modes(self) -> list[PositionMode]:
         """Backpack supports ONE-WAY mode only."""
         return CONSTANTS.SUPPORTED_POSITION_MODES
@@ -245,13 +242,21 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     def get_buy_collateral_token(self, trading_pair: str) -> str:
         """Returns collateral token for long positions"""
-        trading_rule: TradingRule = self._trading_rules[trading_pair]
-        return trading_rule.buy_order_collateral_token
+        try:
+            trading_rule: TradingRule = self._trading_rules[trading_pair]
+            return trading_rule.buy_order_collateral_token
+        except KeyError:
+            _, quote = utils.split_trading_pair(trading_pair)
+            return quote
 
     def get_sell_collateral_token(self, trading_pair: str) -> str:
         """Returns collateral token for short positions"""
-        trading_rule: TradingRule = self._trading_rules[trading_pair]
-        return trading_rule.sell_order_collateral_token
+        try:
+            trading_rule: TradingRule = self._trading_rules[trading_pair]
+            return trading_rule.sell_order_collateral_token
+        except KeyError:
+            _, quote = utils.split_trading_pair(trading_pair)
+            return quote
 
     def get_max_leverage(self, trading_pair: str) -> Decimal:
         """Get the maximum leverage for a trading pair.
@@ -697,16 +702,21 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         trading_rules = {}
 
-        # The /api/v1/markets endpoint returns a list directly, not a dict
-        markets = response if isinstance(response, list) else response.get("symbols", [])
+        if isinstance(response, list):
+            markets = response
+        elif isinstance(response, dict):
+            markets = response.get("symbols") or response.get("data") or []
+        else:
+            markets = []
 
         for market_info in markets:
             try:
                 # Only process perpetual markets
-                if not utils.is_perpetual_symbol(market_info["symbol"]):
+                symbol = market_info.get("symbol")
+                if not symbol or not utils.is_perpetual_symbol(symbol):
                     continue
 
-                trading_pair = utils.convert_from_exchange_trading_pair(market_info["symbol"])
+                trading_pair = utils.convert_from_exchange_trading_pair(symbol)
                 if trading_pair is None:
                     continue
 
@@ -730,8 +740,11 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 if min_notional:
                     min_notional = Decimal(str(min_notional))
 
-                # Get collateral token from API response (required field)
-                collateral_token = market_info["quoteSymbol"]
+                collateral_token = (
+                    market_info.get("quoteSymbol")
+                    or market_info.get("quoteAsset")
+                    or trading_pair.split("-")[1]
+                )
 
                 # Create trading rule
                 trading_rule = TradingRule(
@@ -815,36 +828,30 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     # Balance and position management
     async def _update_balances(self):
-        """Update account balances using collateral endpoint as single source of truth.
-
-        For perpetuals, we use the collateral endpoint just like the spot connector
-        because it includes auto-lent funds which are available for trading.
-        """
+        """Update account balances using collateral endpoint as single source of truth."""
         try:
             self.logger().debug("Fetching balances from collateral endpoint")
-            # Get collateral balances - this includes everything (spot + auto-lent)
             collateral_data = await self._api_get(
                 path_url=CONSTANTS.COLLATERAL_URL,
                 is_auth_required=True,
+                limit_id=CONSTANTS.BALANCE_URL,
             )
             self.logger().debug(f"Collateral data received: {collateral_data}")
-
-            # Check if we got valid data
-            if not collateral_data or "collateral" not in collateral_data:
-                self.logger().error(f"Invalid collateral data received: {collateral_data}")
-                return
 
             # Initialize balance dictionaries
             self._account_balances.clear()
             self._account_available_balances.clear()
 
-            # Use collateral endpoint as the single source of truth
-            # It already includes both spot and auto-lent balances
+            # Collateral endpoint includes both spot and auto-lent balances
+            if not collateral_data or "collateral" not in collateral_data:
+                self.logger().error(f"Invalid collateral data received: {collateral_data}")
+                return
+
             for asset_info in collateral_data["collateral"]:
                 symbol = asset_info["symbol"]
-                total_quantity = Decimal(asset_info["totalQuantity"])
-                available_quantity = Decimal(asset_info["availableQuantity"])
-                lend_quantity = Decimal(asset_info.get("lendQuantity", "0"))
+                total_quantity = Decimal(str(asset_info["totalQuantity"]))
+                available_quantity = Decimal(str(asset_info["availableQuantity"]))
+                lend_quantity = Decimal(str(asset_info.get("lendQuantity", "0")))
 
                 # Total balance is totalQuantity
                 self._account_balances[symbol] = total_quantity
@@ -875,6 +882,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Handle both list format (direct response) and object format (wrapped in "positions" key)
             # Normalize response to list format
             positions = web_utils.normalize_response_to_list(response)
+
+            if isinstance(response, list) and len(response) == 0:
+                for trading_pair in list(self._perpetual_trading.account_positions.keys()):
+                    if not self._trading_pairs or trading_pair in self._trading_pairs:
+                        del self._perpetual_trading.account_positions[trading_pair]
+                return
 
             # Log the number of positions received for debugging
             if positions:
@@ -989,13 +1002,15 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 # Check if position is at risk using maintenance margin rate from constants
                 at_risk = False
 
-                # Get actual maintenance margin ratio for the trading pair
-                try:
-                    maint_margin_ratio = self.get_maintenance_margin_ratio(trading_pair)
-                except ValueError:
-                    # If market data not loaded yet, cannot determine risk
-                    self.logger().warning(f"Cannot determine risk for {trading_pair}: margin data not loaded")
-                    maint_margin_ratio = None
+                if maint_margin_fraction is not None:
+                    maint_margin_ratio = Decimal(str(maint_margin_fraction))
+                else:
+                    try:
+                        maint_margin_ratio = self.get_maintenance_margin_ratio(trading_pair)
+                    except ValueError:
+                        # If market data not loaded yet, cannot determine risk
+                        self.logger().warning(f"Cannot determine risk for {trading_pair}: margin data not loaded")
+                        maint_margin_ratio = None
 
                 if maint_margin_ratio is not None:
                     if is_long:
@@ -1397,11 +1412,19 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         if mark_data is None:
             raise ValueError(f"No mark price data found for {symbol}")
 
+        next_funding_ts = (
+            mark_data.get("nextFundingTimestamp")
+            or mark_data.get("nextFundingTime")
+            or mark_data.get("nextFunding")
+            or 0
+        )
+        next_funding_utc_timestamp = int(int(next_funding_ts) / 1000) if next_funding_ts else 0
+
         funding_info = FundingInfo(
             trading_pair=trading_pair,
             index_price=Decimal(str(mark_data["indexPrice"])),
             mark_price=Decimal(str(mark_data["markPrice"])),
-            next_funding_utc_timestamp=int(int(mark_data["nextFundingTimestamp"]) / 1000),  # Convert ms to seconds
+            next_funding_utc_timestamp=next_funding_utc_timestamp,
             rate=Decimal(str(mark_data["fundingRate"])),
         )
 
@@ -1521,10 +1544,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Handle both order updates and trade fills
             data = order_msg.get("data", order_msg)
 
-            # Check event type from WebSocket
-            event_type = data.get("e")
+            event_type = order_msg.get("type") or data.get("e")
 
-            if event_type == "orderFill":
+            if event_type in ["fill", "orderFill"] or "tradeId" in data:
                 # Process trade fill
                 self._process_trade_fill(data)
             elif event_type == "orderCancelled":
@@ -1670,6 +1692,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     f"Missing required fill fields: trade_id={trade_id}, "
                     f"quantity={fill_quantity}, price={fill_price}",
                 )
+                return
+
+            # Ignore duplicate fills
+            if trade_id in tracked_order.order_fills:
                 return
 
             # Create trade update
@@ -2182,7 +2208,14 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         Uses TIME endpoint since Backpack's ping returns plain text "pong", not JSON,
         which is incompatible with the standard REST assistant used by Hummingbot.
         """
-        await self._api_get(
-            path_url=CONSTANTS.TIME_URL,
+        api_factory = web_utils.build_api_factory_without_time_synchronizer_pre_processor(
+            throttler=self._throttler,
+        )
+        await web_utils.api_request(
+            path=CONSTANTS.TIME_URL,
+            api_factory=api_factory,
+            throttler=self._throttler,
+            domain=self._domain,
+            method=RESTMethod.GET,
             is_auth_required=False,
         )
