@@ -217,7 +217,6 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         return [OrderType.LIMIT, OrderType.LIMIT_MAKER, OrderType.MARKET]
 
-    @property
     def supported_position_modes(self) -> list[PositionMode]:
         """Backpack supports ONE-WAY mode only."""
         return CONSTANTS.SUPPORTED_POSITION_MODES
@@ -1111,30 +1110,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             "clientId": numeric_client_id,  # Backpack expects integer clientId
         }
 
-        # Add reduce-only flag for closing positions
-        # But first verify this order would actually reduce the position
+        # Add reduce-only flag for closing positions (consistent with other perp connectors)
         if reduce_only:
-            # Check if we have a position and if this order would reduce it
-            if trading_pair in self._perpetual_trading.account_positions:
-                pos = self._perpetual_trading.account_positions[trading_pair]
-                # LONG position is reduced by SELL, SHORT by BUY
-                would_reduce = (
-                    (pos.position_side == PositionSide.LONG and trade_type == TradeType.SELL) or
-                    (pos.position_side == PositionSide.SHORT and trade_type == TradeType.BUY)
-                )
-                if would_reduce:
-                    order_data["reduceOnly"] = True  # Use boolean, not string
-                    self.logger().debug(
-                        f"Setting reduceOnly=True for {trade_type} order "
-                        f"to close {pos.position_side} position",
-                    )
-                else:
-                    self.logger().warning(
-                        f"Order validation: {trade_type} order would not reduce {pos.position_side} position. "
-                        f"Not setting reduceOnly flag. This may be intentional for complex strategies.",
-                    )
-            else:
-                self.logger().warning(f"reduceOnly requested but no position found for {trading_pair}")
+            order_data["reduceOnly"] = True  # Use boolean, not string
 
         # Handle LIMIT_MAKER by converting to LIMIT with postOnly flag
         if order_type == OrderType.LIMIT_MAKER:
@@ -1758,9 +1736,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             if raw_client_id is not None:
                 try:
                     numeric_client_id = int(raw_client_id)
-                    client_order_id = self._id_mapper.get_hb_id(numeric_client_id)
                 except (TypeError, ValueError):
-                    client_order_id = str(raw_client_id)
+                    self.logger().debug(f"Ignoring non-numeric clientId in order update: {raw_client_id}")
+                else:
+                    client_order_id = self._id_mapper.get_hb_id(numeric_client_id)
 
             if not client_order_id:
                 # If no client order ID, try to use exchange order ID to find order
@@ -1778,6 +1757,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             tracked_order = self._order_tracker.fetch_order(client_order_id)
             if not tracked_order:
                 # For new orders from WebSocket, create an InFlightOrder
+                if not client_order_id:
+                    return
                 exchange_order_id = order_data.get("orderId") or order_data.get("id") or order_data.get("i")
                 status = order_data.get("status") or order_data.get("X") or order_data.get("x")
                 if exchange_order_id and status in ["NEW", "New"]:
