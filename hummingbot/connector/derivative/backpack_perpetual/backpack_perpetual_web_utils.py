@@ -21,6 +21,14 @@ from hummingbot.logger import HummingbotLogger
 T = TypeVar("T")
 
 
+def _rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    normalized_path = path_url.lstrip("/")
+    if not base_url.endswith("/"):
+        base_url = f"{base_url}/"
+    return f"{base_url}{normalized_path}"
+
+
 _bpwu_logger: Optional[HummingbotLogger] = None
 
 
@@ -38,8 +46,7 @@ def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> st
     :param domain: the Backpack domain to connect to
     :return: the full URL to the endpoint
     """
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    return base_url + path_url
+    return _rest_url(path_url=path_url, domain=domain)
 
 
 def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
@@ -49,8 +56,7 @@ def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> s
     :param domain: the Backpack domain to connect to
     :return: the full URL to the endpoint
     """
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    return base_url + path_url
+    return _rest_url(path_url=path_url, domain=domain)
 
 
 def build_api_factory(
@@ -222,8 +228,8 @@ async def api_request(
         limit_id = normalized_path
 
     # Build full URL
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    url = f"{base_url}{normalized_path}"
+    url_builder = private_rest_url if is_auth_required else public_rest_url
+    url = url_builder(path_url=normalized_path, domain=domain)
 
     # Get REST assistant
     rest_assistant = await api_factory.get_rest_assistant()
@@ -343,8 +349,7 @@ def get_rest_url_for_endpoint(
     Returns:
         Full URL for the endpoint
     """
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    return f"{base_url}{endpoint}"
+    return _rest_url(path_url=endpoint, domain=domain)
 
 
 def get_ws_url_for_endpoint(

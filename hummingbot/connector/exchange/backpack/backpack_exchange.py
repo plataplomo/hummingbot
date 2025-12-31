@@ -421,8 +421,68 @@ class BackpackExchange(ExchangePyBase):
         except Exception as e:
             self.logger().error(f"Error in _update_order_fills_from_trades: {e}", exc_info=True)
 
+        try:
+            await self._sync_open_orders_with_missing_exchange_ids()
+        except Exception as e:
+            self.logger().error(f"Error syncing open orders: {e}", exc_info=True)
+
         # Call parent implementation
         await super()._status_polling_loop_fetch_updates()
+
+    async def _sync_open_orders_with_missing_exchange_ids(self):
+        """Sync exchange order IDs for tracked orders using the open orders endpoint."""
+        missing_exchange_id_orders = {
+            order.client_order_id: order
+            for order in self._order_tracker.active_orders.values()
+            if order.exchange_order_id is None
+        }
+
+        if not missing_exchange_id_orders:
+            return
+
+        response = await self._api_get(
+            path_url=CONSTANTS.OPEN_ORDERS_URL,
+            params={"marketType": "SPOT"},
+            is_auth_required=True,
+            limit_id=CONSTANTS.OPEN_ORDERS_URL,
+        )
+
+        open_orders = web_utils.normalize_response_to_list(response)
+
+        for order_data in open_orders:
+            if not isinstance(order_data, dict):
+                continue
+
+            client_id = order_data.get("clientId") or order_data.get("c")
+            if client_id is None:
+                continue
+
+            hb_order_id = self._id_mapper.get_hb_id(int(client_id))
+            if hb_order_id is None:
+                continue
+
+            tracked_order = missing_exchange_id_orders.get(hb_order_id)
+            if tracked_order is None:
+                continue
+
+            exchange_order_id = order_data.get("id") or order_data.get("orderId")
+            if exchange_order_id is None:
+                continue
+
+            status = order_data.get("status")
+            if status in CONSTANTS.ORDER_STATE_MAP:
+                new_state = OrderState[CONSTANTS.ORDER_STATE_MAP[status]]
+            else:
+                new_state = OrderState.OPEN
+
+            order_update = OrderUpdate(
+                client_order_id=hb_order_id,
+                exchange_order_id=str(exchange_order_id),
+                trading_pair=tracked_order.trading_pair,
+                update_timestamp=self.current_timestamp,
+                new_state=new_state,
+            )
+            self._order_tracker.process_order_update(order_update)
 
     async def _update_order_fills_from_trades(self):
         """Update order fills from recent trades.
@@ -680,8 +740,12 @@ class BackpackExchange(ExchangePyBase):
 
         cancel_data = {
             "symbol": exchange_symbol,
-            "orderId": tracked_order.exchange_order_id,
         }
+
+        if tracked_order.exchange_order_id is not None:
+            cancel_data["orderId"] = tracked_order.exchange_order_id
+        else:
+            cancel_data["clientId"] = self._id_mapper.get_numeric_id(tracked_order.client_order_id)
 
         try:
             await self._api_delete(
@@ -767,25 +831,32 @@ class BackpackExchange(ExchangePyBase):
         try:
             # If order doesn't have an exchange ID, it failed to submit
             if not tracked_order.exchange_order_id:
-                return OrderUpdate(
-                    client_order_id=tracked_order.client_order_id,
-                    exchange_order_id=None,
-                    trading_pair=tracked_order.trading_pair,
-                    update_timestamp=self.current_timestamp,
-                    new_state=OrderState.FAILED,
+                exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
+                try:
+                    order_data = await self._api_get(
+                        path_url=CONSTANTS.ORDER_URL,
+                        params={
+                            "symbol": exchange_symbol,
+                            "clientId": self._id_mapper.get_numeric_id(tracked_order.client_order_id),
+                        },
+                        is_auth_required=True,
+                        limit_id=CONSTANTS.ORDER_URL,
+                    )
+                except Exception as e:
+                    if self._is_order_not_found_during_status_update_error(e):
+                        raise asyncio.TimeoutError() from e
+                    raise
+            else:
+                exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
+                order_data = await self._api_get(
+                    path_url=CONSTANTS.ORDER_URL,
+                    params={
+                        "symbol": exchange_symbol,
+                        "orderId": tracked_order.exchange_order_id,
+                    },
+                    is_auth_required=True,
+                    limit_id=CONSTANTS.ORDER_URL,
                 )
-
-            exchange_symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
-
-            order_data = await self._api_get(
-                path_url=CONSTANTS.ORDER_URL,
-                params={
-                    "symbol": exchange_symbol,
-                    "orderId": tracked_order.exchange_order_id,
-                },
-                is_auth_required=True,
-                limit_id=CONSTANTS.ORDER_URL,
-            )
 
             # Status must be in our mapping
             if order_data["status"] not in CONSTANTS.ORDER_STATE_MAP:
@@ -800,23 +871,43 @@ class BackpackExchange(ExchangePyBase):
                 )
             order_state_str = CONSTANTS.ORDER_STATE_MAP[order_data["status"]]
 
+            executed_base = Decimal(str(order_data.get("executedQuantity", "0")))
+            executed_quote_raw = order_data.get("executedQuoteQuantity")
+            executed_quote = Decimal(str(executed_quote_raw)) if executed_quote_raw is not None else None
+
+            raw_price = order_data.get("price")
+            if raw_price is not None:
+                fill_price = Decimal(str(raw_price))
+            elif executed_quote is not None and executed_base > 0:
+                fill_price = executed_quote / executed_base
+            else:
+                fill_price = Decimal("0")
+
+            executed_amount_quote = (
+                executed_quote
+                if executed_quote is not None
+                else executed_base * fill_price
+            )
+
+            exchange_order_id = order_data.get("id") or order_data.get("orderId") or tracked_order.exchange_order_id
+
             order_update = OrderUpdate(
                 client_order_id=tracked_order.client_order_id,
-                exchange_order_id=tracked_order.exchange_order_id,
+                exchange_order_id=exchange_order_id,
                 trading_pair=tracked_order.trading_pair,
                 update_timestamp=self.current_timestamp,
                 new_state=OrderState[order_state_str],
                 misc_updates={
-                    "fill_price": Decimal(order_data["price"]),
-                    "executed_amount_base": Decimal(order_data["executedQuantity"]),
-                    "executed_amount_quote": (
-                        Decimal(order_data["executedQuantity"]) * Decimal(order_data["price"])
-                    ),
+                    "fill_price": fill_price,
+                    "executed_amount_base": executed_base,
+                    "executed_amount_quote": executed_amount_quote,
                 },
             )
 
             return order_update
 
+        except asyncio.TimeoutError:
+            raise
         except Exception as e:
             if self._is_order_not_found_during_status_update_error(e):
                 # Order not found, mark as cancelled
@@ -1161,6 +1252,48 @@ class BackpackExchange(ExchangePyBase):
                 return
             data = balance_msg["data"]
 
+            if isinstance(data, dict) and "balances" in data:
+                balances = data["balances"]
+                if isinstance(balances, dict):
+                    for asset, balance in balances.items():
+                        if not isinstance(balance, dict):
+                            continue
+                        available = balance.get("available") or balance.get("free") or balance.get("availableQuantity")
+                        if available is None:
+                            continue
+                        locked = balance.get("locked", "0")
+                        staked = balance.get("staked", "0")
+                        total = balance.get("total") or balance.get("totalQuantity")
+                        total_balance = (
+                            Decimal(str(total))
+                            if total is not None
+                            else Decimal(str(available)) + Decimal(str(locked)) + Decimal(str(staked))
+                        )
+                        self._account_available_balances[asset] = Decimal(str(available))
+                        self._account_balances[asset] = total_balance
+                    return
+                if isinstance(balances, list):
+                    for balance in balances:
+                        if not isinstance(balance, dict):
+                            continue
+                        asset = balance.get("asset") or balance.get("symbol") or balance.get("currency")
+                        if not asset:
+                            continue
+                        available = balance.get("available") or balance.get("free") or balance.get("availableQuantity")
+                        if available is None:
+                            continue
+                        locked = balance.get("locked", "0")
+                        staked = balance.get("staked", "0")
+                        total = balance.get("total") or balance.get("totalQuantity")
+                        total_balance = (
+                            Decimal(str(total))
+                            if total is not None
+                            else Decimal(str(available)) + Decimal(str(locked)) + Decimal(str(staked))
+                        )
+                        self._account_available_balances[asset] = Decimal(str(available))
+                        self._account_balances[asset] = total_balance
+                    return
+
             if "asset" not in data:
                 self.logger().error(f"Missing asset in balance data: {data}")
                 return
@@ -1170,8 +1303,8 @@ class BackpackExchange(ExchangePyBase):
             if "free" not in data or "total" not in data:
                 self.logger().error(f"Missing balance fields for {asset}: {data}")
                 return
-            free_balance = Decimal(data["free"])
-            total_balance = Decimal(data["total"])
+            free_balance = Decimal(str(data["free"]))
+            total_balance = Decimal(str(data["total"]))
 
             self._account_available_balances[asset] = free_balance
             self._account_balances[asset] = total_balance

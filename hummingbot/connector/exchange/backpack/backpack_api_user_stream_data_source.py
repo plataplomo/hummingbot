@@ -4,7 +4,6 @@ Handles private WebSocket streams for account updates.
 
 import asyncio
 import json
-import time
 from collections.abc import AsyncGenerator
 from typing import TYPE_CHECKING, Any
 
@@ -109,7 +108,7 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
         try:
             # For Backpack, authentication and subscription are combined
             # We need to send auth params with each private channel subscription
-            timestamp = str(int(time.time() * 1000))
+            timestamp = str(self._auth._get_timestamp())
             window = str(CONSTANTS.AUTH_WINDOW_MS)
 
             # Build auth payload
@@ -346,6 +345,7 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
                 url=web_utils.private_rest_url(CONSTANTS.BALANCES_URL, self._domain),
                 method=RESTMethod.GET,
                 throttler_limit_id=CONSTANTS.BALANCES_URL,
+                is_auth_required=True,
             )
             return data if isinstance(data, dict) else {}
 
@@ -365,6 +365,7 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
                 url=web_utils.private_rest_url(CONSTANTS.OPEN_ORDERS_URL, self._domain),
                 method=RESTMethod.GET,
                 throttler_limit_id=CONSTANTS.OPEN_ORDERS_URL,
+                is_auth_required=True,
             )
             return data if isinstance(data, dict) else {}
 

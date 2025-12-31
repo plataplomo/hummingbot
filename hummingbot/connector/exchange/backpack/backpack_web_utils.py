@@ -9,8 +9,17 @@ from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.connector.utils import TimeSynchronizerRESTPreProcessor
 from hummingbot.core.api_throttler.async_throttler import AsyncThrottler
 from hummingbot.core.web_assistant.auth import AuthBase
-from hummingbot.core.web_assistant.connections.data_types import RESTMethod
+from hummingbot.core.web_assistant.connections.data_types import RESTMethod, RESTRequest
+from hummingbot.core.web_assistant.rest_pre_processors import RESTPreProcessorBase
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
+
+
+def _rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
+    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
+    normalized_path = path_url.lstrip("/")
+    if not base_url.endswith("/"):
+        base_url = f"{base_url}/"
+    return f"{base_url}{normalized_path}"
 
 
 def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
@@ -20,8 +29,24 @@ def public_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> st
     :param domain: the Backpack domain to connect to
     :return: the full URL to the endpoint
     """
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    return base_url + path_url
+    return _rest_url(path_url=path_url, domain=domain)
+
+
+def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
+    """
+    Creates a full URL for provided private REST endpoint
+    :param path_url: a private REST endpoint
+    :param domain: the Backpack domain to connect to
+    :return: the full URL to the endpoint
+    """
+    return _rest_url(path_url=path_url, domain=domain)
+
+
+class HeadersContentRESTPreProcessor(RESTPreProcessorBase):
+    async def pre_process(self, request: RESTRequest) -> RESTRequest:
+        request.headers = request.headers or {}
+        request.headers["Content-Type"] = "application/json"
+        return request
 
 
 def build_api_factory(
@@ -45,6 +70,7 @@ def build_api_factory(
         auth=auth,
         rest_pre_processors=[
             TimeSynchronizerRESTPreProcessor(synchronizer=time_synchronizer, time_provider=time_provider),
+            HeadersContentRESTPreProcessor(),
         ],
     )
 
@@ -89,17 +115,6 @@ async def get_current_server_time(
     return time.time() * 1e3
 
 
-def private_rest_url(path_url: str, domain: str = CONSTANTS.DEFAULT_DOMAIN) -> str:
-    """
-    Creates a full URL for provided private REST endpoint
-    :param path_url: a private REST endpoint
-    :param domain: the Backpack domain to connect to
-    :return: the full URL to the endpoint
-    """
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    return base_url + path_url
-
-
 def create_throttler() -> AsyncThrottler:
     return AsyncThrottler(CONSTANTS.RATE_LIMITS)
 
@@ -141,10 +156,7 @@ def get_rest_url_for_endpoint(endpoint: str, domain: str = CONSTANTS.DEFAULT_DOM
     Returns:
         Full URL for the endpoint
     """
-    base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    endpoint = endpoint.removeprefix("/")
-
-    return f"{base_url}{endpoint}"
+    return _rest_url(path_url=endpoint, domain=domain)
 
 
 def get_ws_url(domain: str = CONSTANTS.DEFAULT_DOMAIN, private: bool = False) -> str:
