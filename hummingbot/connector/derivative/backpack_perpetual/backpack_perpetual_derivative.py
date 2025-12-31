@@ -2,6 +2,7 @@
 Main derivative class implementing perpetual futures trading functionality.
 """
 
+import asyncio
 import copy
 import math
 import time
@@ -993,61 +994,6 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 f"Position updated for {trading_pair}: side={position.position_side}, "
                 f"amount={position.amount} (signed), entry_price={position.entry_price}",
             )
-
-            # Check for margin call conditions based on maintenance margin and liquidation price
-            # Similar to Binance implementation
-            liquidation_price = position_data.get("l")
-            mark_price = position_data.get("M")
-            maint_margin_fraction = position_data.get("m")
-
-            if liquidation_price and mark_price:
-                mark_price_decimal = Decimal(str(mark_price))
-                liquidation_price_decimal = Decimal(str(liquidation_price))
-
-                # Check if position is at risk using maintenance margin rate from constants
-                at_risk = False
-
-                if maint_margin_fraction is not None:
-                    maint_margin_ratio = Decimal(str(maint_margin_fraction))
-                else:
-                    try:
-                        maint_margin_ratio = self.get_maintenance_margin_ratio(trading_pair)
-                    except ValueError:
-                        # If market data not loaded yet, cannot determine risk
-                        self.logger().warning(f"Cannot determine risk for {trading_pair}: margin data not loaded")
-                        maint_margin_ratio = None
-
-                if maint_margin_ratio is not None:
-                    if is_long:
-                        # For long positions, risk when mark price approaches liquidation price from above
-                        risk_threshold = liquidation_price_decimal * (Decimal(1) + maint_margin_ratio)
-                        at_risk = mark_price_decimal <= risk_threshold
-                    else:
-                        # For short positions, risk when mark price approaches liquidation price from below
-                        risk_threshold = liquidation_price_decimal * (Decimal(1) - maint_margin_ratio)
-                        at_risk = mark_price_decimal >= risk_threshold
-                else:
-                    at_risk = False
-
-                if at_risk:
-                    # Issue margin call warning similar to Binance connector
-                    self.logger().warning(
-                        "Margin Call: Your position risk is too high, and you are at risk of "
-                        "liquidation. Close your positions or add additional margin to your wallet.",
-                    )
-
-                    # Log additional info similar to Binance
-                    negative_pnl_msg = ""
-                    if unrealized_pnl < Decimal(0):
-                        negative_pnl_msg = f"{trading_pair}: {unrealized_pnl}, "
-
-                    maint_margin_msg = ""
-                    if maint_margin_fraction:
-                        maint_margin_msg = f"Maintenance Margin: {maint_margin_fraction}. "
-
-                    self.logger().info(
-                        f"{maint_margin_msg}Negative PnL assets: {negative_pnl_msg}.",
-                    )
 
         except Exception:
             self.logger().exception(f"Error processing position update: {position_data}")
