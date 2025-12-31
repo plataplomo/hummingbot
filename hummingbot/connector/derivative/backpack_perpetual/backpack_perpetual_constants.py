@@ -28,6 +28,7 @@ EXCHANGE_INFO_URL = "api/v1/markets"
 TICKER_URL = "api/v1/ticker"
 TICKER_24H_URL = "api/v1/tickers"
 ORDER_BOOK_URL = "api/v1/depth"
+ORDER_BOOK_DEPTH_LIMIT = 100
 TRADES_URL = "api/v1/trades"
 CANDLES_URL = "api/v1/klines"
 TIME_URL = "api/v1/time"
@@ -58,24 +59,24 @@ POSITIONS_URL = "api/v1/position"
 # Instruction map for signing authenticated requests
 INSTRUCTION_MAP = {
     # Account endpoints
-    ("GET", "/api/v1/account"): "accountQuery",
-    ("PATCH", "/api/v1/account"): "accountUpdate",
+    ("GET", f"/{ACCOUNT_URL}"): "accountQuery",
+    ("PATCH", f"/{ACCOUNT_URL}"): "accountUpdate",
     # Capital and balance endpoints
-    ("GET", "/api/v1/capital"): "balanceQuery",
-    ("GET", "/api/v1/capital/collateral"): "collateralQuery",
+    ("GET", f"/{BALANCE_URL}"): "balanceQuery",
+    ("GET", f"/{COLLATERAL_URL}"): "collateralQuery",
     # Position endpoints
-    ("GET", "/api/v1/position"): "positionQuery",
+    ("GET", f"/{POSITIONS_URL}"): "positionQuery",
     # Order management endpoints
-    ("POST", "/api/v1/order"): "orderExecute",
-    ("DELETE", "/api/v1/order"): "orderCancel",
-    ("DELETE", "/api/v1/orders"): "orderCancelAll",
-    ("GET", "/api/v1/order"): "orderQuery",
-    ("GET", "/api/v1/orders"): "orderQueryAll",
+    ("POST", f"/{ORDER_URL}"): "orderExecute",
+    ("DELETE", f"/{CANCEL_URL}"): "orderCancel",
+    ("DELETE", f"/{CANCEL_ALL_URL}"): "orderCancelAll",
+    ("GET", f"/{ORDER_URL}"): "orderQuery",
+    ("GET", f"/{OPEN_ORDERS_URL}"): "orderQueryAll",
     # Historical data endpoints
-    ("GET", "/wapi/v1/history/orders"): "orderHistoryQueryAll",
-    ("GET", "/wapi/v1/history/fills"): "fillHistoryQueryAll",
+    ("GET", f"/{ORDER_HISTORY_URL}"): "orderHistoryQueryAll",
+    ("GET", f"/{FILLS_URL}"): "fillHistoryQueryAll",
     # Funding history endpoints
-    ("GET", "/wapi/v1/history/funding"): "fundingHistoryQueryAll",
+    ("GET", f"/{FUNDING_HISTORY_URL}"): "fundingHistoryQueryAll",
 }
 
 # WebSocket public channels
@@ -96,6 +97,8 @@ WS_FUNDING_RATE_CHANNEL = "markPrice"  # Funding info comes via markPrice channe
 WS_MARK_PRICE_CHANNEL = "markPrice"  # Full format: markPrice.<symbol>
 WS_LIQUIDATION_CHANNEL = "liquidation"  # Not account-specific
 WS_OPEN_INTEREST_CHANNEL = "openInterest"  # Full format: openInterest.<symbol>
+WS_AUTH_INSTRUCTION = "subscribe"
+WS_AUTH_MESSAGE_METHOD = "auth"
 
 # Order configuration
 BROKER_ID = "HBOT"
@@ -129,6 +132,36 @@ RATE_LIMITS = [
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
     RateLimit(
+        limit_id=CANCEL_ALL_URL,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=OPEN_ORDERS_URL,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=ORDER_HISTORY_URL,
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=FILLS_URL,
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=FUNDING_HISTORY_URL,
+        limit=1,  # Historical endpoint - 60 requests per 2 min = 0.5/sec
+        time_interval=2,
+        linked_limits=[LinkedLimitWeightPair(HISTORICAL_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
         limit_id=POSITIONS_URL,
         limit=16,  # ~16.67 requests per second
         time_interval=1,
@@ -146,6 +179,18 @@ RATE_LIMITS = [
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
     ),
+    RateLimit(
+        limit_id=COLLATERAL_URL,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=ACCOUNT_URL,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
     # Public market data endpoints
     RateLimit(
         limit_id=EXCHANGE_INFO_URL,
@@ -155,6 +200,18 @@ RATE_LIMITS = [
     ),
     RateLimit(
         limit_id=TICKER_URL,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=TICKER_24H_URL,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=MARK_PRICE_URL,
         limit=16,  # ~16.67 requests per second
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
@@ -196,8 +253,8 @@ ORDER_TYPE_MAP = {
 
 # Trade type mapping
 ORDER_SIDE_MAP = {
-    TradeType.BUY.name: "Buy",
-    TradeType.SELL.name: "Sell",
+    TradeType.BUY.name: "Bid",
+    TradeType.SELL.name: "Ask",
 }
 
 # Order status mapping
@@ -207,6 +264,8 @@ ORDER_STATE_MAP = {
     "Filled": "FILLED",
     "Cancelled": "CANCELED",
     "PendingCancel": "PENDING_CANCEL",
+    "TriggerPending": "OPEN",
+    "TriggerFailed": "FAILED",
     "Rejected": "FAILED",
     "Expired": "EXPIRED",
 }

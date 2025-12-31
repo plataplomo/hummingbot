@@ -108,5 +108,5 @@ class BackpackOrderBook(OrderBook):
                 "price": msg["p"],
                 "amount": msg["q"],
             },
-            timestamp=ts * 1e-3,
+            timestamp=ts * 1e-6,
         )

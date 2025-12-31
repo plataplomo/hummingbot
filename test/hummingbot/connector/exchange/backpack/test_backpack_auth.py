@@ -6,6 +6,7 @@ import base64
 import unittest
 from unittest.mock import MagicMock, patch
 
+from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
 from hummingbot.connector.exchange.backpack.backpack_auth import BackpackAuth
 
 
@@ -75,22 +76,22 @@ class TestBackpackAuth(unittest.TestCase):
         payload = auth._build_signature_payload(
             timestamp="1640995200000",
             method="GET",
-            path="/api/v1/balances",
+            path=f"/{CONSTANTS.BALANCES_URL}",
             params={"symbol": "BTC_USDC"}
         )
 
-        expected = "1640995200000GET/api/v1/balances?symbol=BTC_USDC"
+        expected = "instruction=balanceQuery&symbol=BTC_USDC&timestamp=1640995200000&window=5000"
         self.assertEqual(payload, expected)
 
         # Test POST request payload
         payload = auth._build_signature_payload(
             timestamp="1640995200000",
             method="POST",
-            path="/api/v1/order",
-            data='{"symbol":"BTC_USDC","side":"Buy"}'
+            path=f"/{CONSTANTS.ORDER_URL}",
+            data='{"symbol":"BTC_USDC","side":"Bid"}'
         )
 
-        expected = '1640995200000POST/api/v1/order{"symbol":"BTC_USDC","side":"Buy"}'
+        expected = "instruction=orderExecute&side=Bid&symbol=BTC_USDC&timestamp=1640995200000&window=5000"
         self.assertEqual(payload, expected)
 
     @patch('hummingbot.connector.exchange.backpack.backpack_auth.ed25519')
@@ -135,14 +136,14 @@ class TestBackpackAuth(unittest.TestCase):
 
         headers = auth._generate_auth_headers(
             method="GET",
-            path="/api/v1/balances"
+            path=f"/{CONSTANTS.BALANCES_URL}"
         )
 
         expected_headers = {
             "X-API-Key": self.test_api_key,
             "X-Timestamp": str(self.mock_timestamp_ms),
             "X-Signature": base64.b64encode(mock_signature).decode('utf-8'),
-            "X-Window": "5000",
+            "X-Window": str(CONSTANTS.AUTH_WINDOW_MS),
         }
 
         self.assertEqual(headers, expected_headers)
@@ -165,12 +166,12 @@ class TestBackpackAuth(unittest.TestCase):
         ws_auth_message = auth.get_ws_auth_message()
 
         expected_message = {
-            "method": "authenticate",
+            "method": "auth",
             "params": {
                 "apiKey": self.test_api_key,
                 "timestamp": str(self.mock_timestamp_ms),
                 "signature": base64.b64encode(mock_signature).decode('utf-8'),
-                "window": 5000
+                "window": "5000"
             }
         }
 

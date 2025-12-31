@@ -1,15 +1,17 @@
 """Authentication for Backpack Exchange using Ed25519 signatures.
-Compatible with Python 3.10 and Hummingbot patterns.
+Implements Backpack's instruction-based signing scheme for spot endpoints.
 """
 
 from __future__ import annotations
 
 import base64
+import json
 from typing import Any
 from urllib.parse import parse_qs, urlparse
 
 from cryptography.hazmat.primitives.asymmetric import ed25519
 
+from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS
 from hummingbot.connector.time_synchronizer import TimeSynchronizer
 from hummingbot.core.web_assistant.auth import AuthBase
 from hummingbot.core.web_assistant.connections.data_types import RESTRequest, WSRequest
@@ -46,11 +48,21 @@ class BackpackAuth(AuthBase):
         """Get current timestamp in milliseconds."""
         return int(self.time_provider.time() * 1e3)
 
+    def _get_instruction_for_endpoint(self, method: str, path: str) -> str:
+        """Get the instruction string for a given method and path."""
+        lookup_path = path.split("?", maxsplit=1)[0] if "?" in path else path
+        if not lookup_path.startswith("/"):
+            lookup_path = f"/{lookup_path}"
+        instruction = CONSTANTS.INSTRUCTION_MAP.get((method.upper(), lookup_path))
+        if not instruction:
+            instruction = f"{method.lower()}Query"
+        return instruction
+
     def _generate_signature(self, payload: str) -> str:
         """Generate Ed25519 signature for the given payload.
 
         Args:
-            payload: String to sign (timestamp + method + path + body)
+            payload: String to sign
 
         Returns:
             Base64 encoded signature
@@ -71,18 +83,35 @@ class BackpackAuth(AuthBase):
         params: dict[str, Any] | None = None,
         body: str | None = None,
         data: str | None = None,
+        window: str = str(CONSTANTS.AUTH_WINDOW_MS),
     ) -> str:
-        """Build the payload string for signing using timestamp+method+path format."""
-        method = method.upper()
+        """Build the payload string for signing using instruction-based format."""
         if body is None and data is not None:
             body = data
+
+        instruction = self._get_instruction_for_endpoint(method, path)
+        payload_parts = [f"instruction={instruction}"]
+
+        method = method.upper()
         if method == "GET" and params:
             sorted_params = sorted(params.items())
-            query = "&".join(f"{key}={value}" for key, value in sorted_params)
-            return f"{timestamp}{method}{path}?{query}"
-        if body:
-            return f"{timestamp}{method}{path}{body}"
-        return f"{timestamp}{method}{path}"
+            for key, value in sorted_params:
+                if value is not None:
+                    formatted_value = "true" if value is True else "false" if value is False else value
+                    payload_parts.append(f"{key}={formatted_value}")
+        elif method in ["POST", "PUT", "DELETE", "PATCH"] and body:
+            try:
+                body_dict = json.loads(body) if isinstance(body, str) else body
+                sorted_params = sorted(body_dict.items())
+                for key, value in sorted_params:
+                    if value is not None:
+                        formatted_value = "true" if value is True else "false" if value is False else value
+                        payload_parts.append(f"{key}={formatted_value}")
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        payload_parts.extend((f"timestamp={timestamp}", f"window={window}"))
+        return "&".join(payload_parts)
 
     def _generate_auth_headers(
         self,
@@ -97,15 +126,16 @@ class BackpackAuth(AuthBase):
             Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
         """
         timestamp = str(self._get_timestamp())
-        window = "5000"
+        window = str(CONSTANTS.AUTH_WINDOW_MS)
 
-        # Build signature payload using timestamp+method+path format
+        # Build signature payload using instruction-based format
         signature_payload = self._build_signature_payload(
             timestamp=timestamp,
             method=method,
             path=path,
             params=params,
             body=body,
+            window=window,
         )
 
         # Generate signature
@@ -207,13 +237,13 @@ class BackpackAuth(AuthBase):
             Authentication message for WebSocket
         """
         timestamp = str(self._get_timestamp())
-        window = 5000
+        window = str(CONSTANTS.AUTH_WINDOW_MS)
 
-        auth_payload = f"{timestamp}GET/ws/auth"
+        auth_payload = f"instruction={CONSTANTS.WS_AUTH_INSTRUCTION}&timestamp={timestamp}&window={window}"
         signature = self._generate_signature(auth_payload)
 
         return {
-            "method": "authenticate",
+            "method": CONSTANTS.WS_AUTH_MESSAGE_METHOD,
             "params": {
                 "apiKey": self.api_key,
                 "timestamp": timestamp,

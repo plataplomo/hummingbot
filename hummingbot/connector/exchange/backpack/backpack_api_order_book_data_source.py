@@ -11,6 +11,7 @@ from hummingbot.connector.exchange.backpack import (
     backpack_utils as utils,
     backpack_web_utils as web_utils,
 )
+from hummingbot.connector.exchange.backpack.backpack_order_book import BackpackOrderBook
 from hummingbot.core.data_type.order_book_message import OrderBookMessage, OrderBookMessageType
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, WSJSONRequest
@@ -83,7 +84,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         exchange_symbol = utils.convert_to_exchange_trading_pair(trading_pair)
         params = {
             "symbol": exchange_symbol,
-            "limit": 1000,  # Get deep order book
+            "limit": CONSTANTS.ORDER_BOOK_DEPTH_LIMIT,  # Get deep order book
         }
 
         rest_assistant = await self._api_factory.get_rest_assistant()
@@ -116,18 +117,17 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
         formatted_bids = [[float(bid[0]), float(bid[1])] for bid in raw_bids if len(bid) >= 2]
         formatted_asks = [[float(ask[0]), float(ask[1])] for ask in raw_asks if len(ask) >= 2]
 
-        snapshot_message = OrderBookMessage(
-            message_type=OrderBookMessageType.SNAPSHOT,
-            content={
-                "trading_pair": trading_pair,
-                "update_id": int(snapshot_data["lastUpdateId"]) if "lastUpdateId" in snapshot_data else 0,
-                "bids": formatted_bids,
-                "asks": formatted_asks,
-            },
+        snapshot_payload = {
+            "trading_pair": trading_pair,
+            "lastUpdateId": int(snapshot_data.get("lastUpdateId", 0)),
+            "bids": formatted_bids,
+            "asks": formatted_asks,
+        }
+
+        return BackpackOrderBook.snapshot_message_from_exchange(
+            snapshot_payload,
             timestamp=time.time(),
         )
-
-        return snapshot_message
 
     async def _connected_websocket_assistant(self) -> WSAssistant:
         """Create and connect WebSocket assistant for public streams.
@@ -249,18 +249,18 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
 
                 if trading_pair in self._trading_pairs:
-                    # WebSocket timestamps are in microseconds (field 'T' or 'E')
-                    timestamp = data.get("T", data.get("E", time.time() * 1_000_000))
+                    timestamp = data.get("T", data.get("E", time.time() * 1_000_000)) / 1_000_000
+                    diff_payload = {
+                        "trading_pair": trading_pair,
+                        "b": data.get("b", data.get("bids", [])),
+                        "a": data.get("a", data.get("asks", [])),
+                        "U": data.get("U", data.get("u", 0)),
+                        "u": data.get("u", data.get("U", 0)),
+                    }
 
-                    order_book_message = OrderBookMessage(
-                        message_type=OrderBookMessageType.DIFF,
-                        content={
-                            "trading_pair": trading_pair,
-                            "update_id": data.get("u", data.get("U", 0)),  # 'u' or 'U' for update_id
-                            "bids": data.get("b", data.get("bids", [])),   # 'b' for bids
-                            "asks": data.get("a", data.get("asks", [])),   # 'a' for asks
-                        },
-                        timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
+                    order_book_message = BackpackOrderBook.diff_message_from_exchange(
+                        diff_payload,
+                        timestamp=timestamp,
                     )
 
                     await message_queue.put(order_book_message)
@@ -293,24 +293,21 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
                 trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
 
                 if trading_pair in self._trading_pairs:
-                    # WebSocket timestamps are in microseconds (field 'T' or 'E')
-                    timestamp = data.get("T", data.get("E", time.time() * 1_000_000))
+                    trade_payload = {
+                        "trading_pair": trading_pair,
+                        "t": data.get("t", data.get("tradeId")),
+                        "p": data.get("p", data.get("price", 0)),
+                        "q": data.get("q", data.get("quantity", 0)),
+                        "m": data.get("m", False),
+                        "E": data.get("E", data.get("T", time.time() * 1_000_000)),
+                    }
 
-                    # Determine trade side - 'm' field indicates if buyer is maker
-                    # If m=true, buyer is maker (taker sold), if m=false, seller is maker (taker bought)
-                    is_buyer_maker = data.get("m", False)
-                    trade_type = "SELL" if is_buyer_maker else "BUY"
+                    if trade_payload["t"] is None:
+                        return
 
-                    trade_message = OrderBookMessage(
-                        message_type=OrderBookMessageType.TRADE,
-                        content={
-                            "trading_pair": trading_pair,
-                            "trade_type": trade_type,
-                            "trade_id": data.get("t", data.get("tradeId")),  # 't' for trade_id
-                            "price": float(data.get("p", data.get("price", 0))),  # 'p' for price
-                            "amount": float(data.get("q", data.get("quantity", 0))),  # 'q' for quantity
-                        },
-                        timestamp=timestamp / 1_000_000,  # Convert microseconds to seconds
+                    trade_message = BackpackOrderBook.trade_message_from_exchange(
+                        trade_payload,
+                        metadata={"trading_pair": trading_pair},
                     )
 
                     await message_queue.put(trade_message)
@@ -381,14 +378,20 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             )
 
             trading_pairs = []
-            if not isinstance(data, dict):
-                return []
-            for symbol_data in data.get("symbols", []):
-                if symbol_data.get("status") == "TRADING":
-                    exchange_symbol = symbol_data.get("symbol")
-                    if exchange_symbol:
-                        trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
-                        trading_pairs.append(trading_pair)
+            markets = web_utils.normalize_response_to_list(data)
+            for symbol_data in markets:
+                if not isinstance(symbol_data, dict):
+                    continue
+                market_type = symbol_data.get("marketType")
+                if market_type and market_type != "SPOT":
+                    continue
+                status = symbol_data.get("status")
+                if status and status != "TRADING":
+                    continue
+                exchange_symbol = symbol_data.get("symbol")
+                if exchange_symbol:
+                    trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
+                    trading_pairs.append(trading_pair)
 
             return trading_pairs
 

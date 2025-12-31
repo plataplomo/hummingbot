@@ -24,12 +24,7 @@ from hummingbot.connector.utils import combine_to_hb_trading_pair
 from hummingbot.core.data_type.common import OrderType, TradeType
 from hummingbot.core.data_type.in_flight_order import InFlightOrder, OrderState, OrderUpdate, TradeUpdate
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
-from hummingbot.core.data_type.trade_fee import (
-    AddedToCostTradeFee,
-    DeductedFromReturnsTradeFee,
-    TokenAmount,
-    TradeFeeBase,
-)
+from hummingbot.core.data_type.trade_fee import DeductedFromReturnsTradeFee, TokenAmount, TradeFeeBase
 from hummingbot.core.data_type.user_stream_tracker_data_source import UserStreamTrackerDataSource
 from hummingbot.core.network_iterator import NetworkStatus
 from hummingbot.core.utils.async_utils import safe_gather
@@ -349,51 +344,34 @@ class BackpackExchange(ExchangePyBase):
         Returns:
             API response data
         """
-        rest_assistant = await self._web_assistants_factory.get_rest_assistant()
+        response = cast(
+            Any,
+            await super()._api_request(
+                path_url=path_url,
+                overwrite_url=overwrite_url,
+                method=method,
+                params=params,
+                data=data,
+                is_auth_required=is_auth_required,
+                return_err=return_err,
+                limit_id=limit_id,
+                headers=headers,
+                **kwargs,
+            ),
+        )
 
-        if limit_id is None:
-            limit_id = str(path_url)
+        if isinstance(response, dict):
+            return response
+        if isinstance(response, list):
+            return {"data": response}
+        if isinstance(response, str):
+            try:
+                parsed = json.loads(response)
+                return parsed if isinstance(parsed, dict) else {"data": parsed}
+            except json.JSONDecodeError as e:
+                return {"error": f"JSON decode failed: {e!s}", "raw": response}
 
-        # Use overwrite_url if provided, otherwise construct from path_url
-        url = overwrite_url or web_utils.get_rest_url_for_endpoint(str(path_url), self._domain)
-
-        async with self._throttler.execute_task(limit_id=limit_id):
-            # Cast response to Any because execute_request can actually return list
-            # despite its type hint only showing Union[str, Dict[str, Any]]
-            response = cast(
-                Any,
-                await rest_assistant.execute_request(
-                    url=url,
-                    method=method,
-                    params=params,
-                    data=data,
-                    is_auth_required=is_auth_required,
-                    headers=headers,
-                    throttler_limit_id=limit_id,
-                ),
-            )
-
-            # Response from execute_request can be dict, str, or list
-            # The REST assistant's execute_request can return list when response.json() is a list
-            if isinstance(response, dict):
-                return response
-            elif isinstance(response, str):
-                # Handle string responses by parsing JSON
-                try:
-                    parsed = json.loads(response)
-                    if isinstance(parsed, dict):
-                        return parsed
-                    # Wrap non-dict JSON results (list, etc.)
-                    return {"data": parsed}
-                except json.JSONDecodeError as e:
-                    return {"error": f"JSON decode failed: {e!s}", "raw": response}
-            elif isinstance(response, list):
-                # Response is a list (when API returns JSON array directly)
-                # Wrap it in a dict to maintain consistent return type
-                return {"data": response}
-            else:
-                # Fallback for any unexpected type - should not happen in practice
-                return {"error": "Unexpected response type", "data": response}
+        return {"data": response}
 
     # Network check
     async def check_network(self) -> NetworkStatus:
@@ -415,7 +393,7 @@ class BackpackExchange(ExchangePyBase):
         amount: Decimal,
         price: Decimal = Decimal("NaN"),
         is_maker: bool | None = None,
-    ) -> AddedToCostTradeFee:
+    ) -> TradeFeeBase:
         """Get fee for an order.
 
         Args:
@@ -431,7 +409,7 @@ class BackpackExchange(ExchangePyBase):
             AddedToCostTradeFee object with fee information
         """
         is_maker = order_type is OrderType.LIMIT_MAKER
-        return AddedToCostTradeFee(percent=self.estimate_fee_pct(is_maker))
+        return DeductedFromReturnsTradeFee(percent=self.estimate_fee_pct(is_maker))
 
     async def _status_polling_loop_fetch_updates(self):
         """Fetch updates for the status polling loop.
@@ -499,11 +477,11 @@ class BackpackExchange(ExchangePyBase):
                     )
                     continue
 
-                if not isinstance(result, dict) or "fills" not in result:
-                    continue
-                fills_data = result["fills"]
+                fills_data = web_utils.normalize_response_to_list(result)
 
                 for fill in fills_data:
+                    if not isinstance(fill, dict):
+                        continue
                     if "orderId" not in fill:
                         self.logger().error(f"Fill missing orderId: {fill}")
                         continue
@@ -513,7 +491,7 @@ class BackpackExchange(ExchangePyBase):
 
                         # Validate required fields exist (no fallbacks for critical data)
                         trade_id = fill.get("tradeId")
-                        if not trade_id:
+                        if trade_id is None:
                             self.logger().error(f"Fill missing tradeId for order {order_id}: {fill}")
                             continue
 
@@ -522,7 +500,7 @@ class BackpackExchange(ExchangePyBase):
                         timestamp = fill.get("timestamp")
                         side = fill.get("side")
 
-                        if not all([quantity, price, timestamp, side]):
+                        if quantity is None or price is None or timestamp is None or side is None:
                             self.logger().error(
                                 f"Fill missing required fields for order {order_id}. "
                                 f"quantity={quantity}, price={price}, timestamp={timestamp}, side={side}",
@@ -530,9 +508,10 @@ class BackpackExchange(ExchangePyBase):
                             continue
 
                         # Validate side value
-                        if side not in ["Buy", "Sell"]:
+                        if side not in ["Bid", "Ask"]:
                             self.logger().error(f"Invalid side value '{side}' for order {order_id}")
                             continue
+                        trade_type = TradeType.BUY if side == "Bid" else TradeType.SELL
 
                         # Extract fee information inline (following Binance/Bybit pattern)
                         # Note: fee might be 0 for maker orders, so we don't require it
@@ -545,7 +524,7 @@ class BackpackExchange(ExchangePyBase):
 
                         fee = TradeFeeBase.new_spot_fee(
                             fee_schema=self.trade_fee_schema(),
-                            trade_type=TradeType.BUY if side == "Buy" else TradeType.SELL,
+                            trade_type=trade_type,
                             percent_token=fee_asset,
                             flat_fees=[TokenAmount(amount=fee_amount, token=fee_asset)] if fee_amount > 0 else [],
                         )
@@ -553,6 +532,7 @@ class BackpackExchange(ExchangePyBase):
                         # Create trade update from fill data
                         fill_base_amount = Decimal(str(quantity))
                         fill_price = Decimal(str(price))
+                        fill_timestamp = utils.parse_fill_timestamp(timestamp)
 
                         trade_update = TradeUpdate(
                             trade_id=str(trade_id),
@@ -563,7 +543,7 @@ class BackpackExchange(ExchangePyBase):
                             fill_base_amount=fill_base_amount,
                             fill_quote_amount=fill_base_amount * fill_price,
                             fill_price=fill_price,
-                            fill_timestamp=timestamp * 1e-3,  # Backpack uses milliseconds
+                            fill_timestamp=fill_timestamp,
                         )
                         self._order_tracker.process_trade_update(trade_update)
 
@@ -575,7 +555,7 @@ class BackpackExchange(ExchangePyBase):
             collateral_data = await self._api_get(
                 path_url=CONSTANTS.COLLATERAL_URL,
                 is_auth_required=True,
-                limit_id=CONSTANTS.BALANCES_URL,
+                limit_id=CONSTANTS.COLLATERAL_URL,
             )
 
             # Check if we got valid data
@@ -741,29 +721,28 @@ class BackpackExchange(ExchangePyBase):
 
             trade_updates: list[TradeUpdate] = []
 
-            # Since _api_get wraps list responses in {"data": [...]}
-            # we need to extract the actual fills list
-            if "data" in response and isinstance(response["data"], list):
-                fills_data = response["data"]
-            else:
-                self.logger().error(f"Unexpected fills response format: {response}")
-                return []
+            fills_data = web_utils.normalize_response_to_list(response)
 
             # If empty list, no fills for this order
             if not fills_data:
                 return []
 
             for fill in fills_data:
+                if not isinstance(fill, dict):
+                    continue
+                trade_id = fill.get("tradeId")
+                if trade_id is None:
+                    self.logger().error(f"Fill missing tradeId for order {order.client_order_id}: {fill}")
+                    continue
                 trade_update = TradeUpdate(
-                    trade_id=fill["tradeId"],
+                    trade_id=str(trade_id),
                     client_order_id=order.client_order_id,
                     exchange_order_id=order.exchange_order_id or "",  # Handle None case
                     trading_pair=order.trading_pair,
-                    # Backpack fills API returns ISO format timestamps or microseconds
                     fill_timestamp=utils.parse_fill_timestamp(fill.get("timestamp")),
                     fill_price=Decimal(fill["price"]),
                     fill_base_amount=Decimal(fill["quantity"]),
-                    fill_quote_amount=Decimal(fill["quantity"]) * Decimal(fill["price"]),  # Calculate quote amount
+                    fill_quote_amount=Decimal(fill["quantity"]) * Decimal(fill["price"]),
                     fee=self._get_trade_fee(
                         base_currency=order.base_asset,
                         quote_currency=order.quote_asset,
@@ -771,7 +750,7 @@ class BackpackExchange(ExchangePyBase):
                         order_side=order.trade_type,
                         amount=Decimal(fill["quantity"]),
                         price=Decimal(fill["price"]),
-                        fee_asset=fill.get("feeAsset", order.quote_asset),
+                        fee_asset=fill.get("feeSymbol", order.quote_asset),
                         fee_amount=Decimal(fill["fee"]) if "fee" in fill else Decimal(0),  # Fee might be 0 for maker
                     ),
                 )
@@ -874,7 +853,7 @@ class BackpackExchange(ExchangePyBase):
         # Get fee rate from trading fees configuration
         # This should be fetched from exchange API or configuration
         # For now, use estimate_fee_pct which should be set from exchange data
-        is_maker = order_type is OrderType.LIMIT
+        is_maker = order_type is OrderType.LIMIT_MAKER
         fee_rate = self.estimate_fee_pct(is_maker)
 
         if order_side == TradeType.BUY:
@@ -901,9 +880,9 @@ class BackpackExchange(ExchangePyBase):
         try:
             # Try to fetch account info which may contain fee rates
             account_info = await self._api_get(
-                path_url=CONSTANTS.ACCOUNT_URL if hasattr(CONSTANTS, "ACCOUNT_URL") else "api/v1/account",
+                path_url=CONSTANTS.ACCOUNT_URL,
                 is_auth_required=True,
-                limit_id=CONSTANTS.BALANCES_URL,  # Use balance rate limit
+                limit_id=CONSTANTS.ACCOUNT_URL,
             )
 
             # Extract fee information from actual Backpack API response
@@ -1114,30 +1093,62 @@ class BackpackExchange(ExchangePyBase):
             if not tracked_order:
                 return
 
-            # WebSocket uses abbreviated fields: X=status, i=orderId, T=timestamp
+            trade_id = data.get("t") or data.get("tradeId")
+            fill_quantity = data.get("l") or data.get("quantity")
+            fill_price = data.get("L") or data.get("price")
+            fill_timestamp = (data.get("T") or data.get("timestamp", self.current_timestamp * 1_000_000)) / 1_000_000
+            if trade_id is not None and fill_quantity is not None and fill_price is not None:
+                if str(trade_id) not in tracked_order.order_fills:
+                    side = data.get("S") or data.get("side")
+                    if side in ["Bid", "Buy"]:
+                        trade_type = TradeType.BUY
+                    elif side in ["Ask", "Sell"]:
+                        trade_type = TradeType.SELL
+                    else:
+                        trade_type = tracked_order.trade_type
+
+                    fee_amount = Decimal(str(data.get("n", data.get("fee", "0"))))
+                    fee_symbol = data.get("N") or data.get("feeSymbol") or tracked_order.quote_asset
+                    fee = TradeFeeBase.new_spot_fee(
+                        fee_schema=self.trade_fee_schema(),
+                        trade_type=trade_type,
+                        percent_token=fee_symbol,
+                        flat_fees=[TokenAmount(amount=fee_amount, token=fee_symbol)] if fee_amount > 0 else [],
+                    )
+
+                    trade_update = TradeUpdate(
+                        trade_id=str(trade_id),
+                        client_order_id=client_order_id,
+                        exchange_order_id=data.get("i") or data.get("orderId") or "",
+                        trading_pair=tracked_order.trading_pair,
+                        fee=fee,
+                        fill_base_amount=Decimal(str(fill_quantity)),
+                        fill_quote_amount=Decimal(str(fill_quantity)) * Decimal(str(fill_price)),
+                        fill_price=Decimal(str(fill_price)),
+                        fill_timestamp=fill_timestamp,
+                    )
+                    self._order_tracker.process_trade_update(trade_update)
+
             status = data.get("X") or data.get("status")
-            if not status or status not in CONSTANTS.ORDER_STATE_MAP:
+            if status and status in CONSTANTS.ORDER_STATE_MAP:
+                order_state = CONSTANTS.ORDER_STATE_MAP[status]
+                new_state = getattr(OrderState, order_state)
+
+                order_update = OrderUpdate(
+                    client_order_id=client_order_id,
+                    exchange_order_id=data.get("i") or data.get("orderId"),
+                    trading_pair=tracked_order.trading_pair,
+                    update_timestamp=fill_timestamp,
+                    new_state=new_state,
+                    misc_updates={
+                        "fill_price": Decimal(data.get("p") or data.get("price", 0)),
+                        "executed_amount_base": Decimal(data.get("z") or data.get("executedQuantity", 0)),
+                    },
+                )
+
+                self._order_tracker.process_order_update(order_update)
+            elif status:
                 self.logger().error(f"Unknown order status in WebSocket: {status}")
-                return
-            order_state = CONSTANTS.ORDER_STATE_MAP[status]
-            new_state = getattr(OrderState, order_state)
-
-            order_update = OrderUpdate(
-                client_order_id=client_order_id,
-                exchange_order_id=data.get("i") or data.get("orderId"),
-                trading_pair=tracked_order.trading_pair,
-                # WebSocket timestamps are in microseconds, convert to seconds
-                update_timestamp=(
-                    data.get("T") or data.get("timestamp", self.current_timestamp * 1_000_000)
-                ) / 1_000_000,
-                new_state=new_state,
-                misc_updates={
-                    "fill_price": Decimal(data.get("p") or data.get("price", 0)),
-                    "executed_amount_base": Decimal(data.get("z") or data.get("executedQuantity", 0)),
-                },
-            )
-
-            self._order_tracker.process_order_update(order_update)
 
         except Exception:
             self.logger().error(f"Error processing order message: {order_msg}", exc_info=True)
@@ -1197,17 +1208,24 @@ class BackpackExchange(ExchangePyBase):
             if not tracked_order:
                 return
 
-            fill_price = Decimal(data["price"])
-            fill_base_amount = Decimal(data["quantity"])
+            trade_id = data.get("tradeId") or data.get("t")
+            fill_price = data.get("price") or data.get("L")
+            fill_base_amount = data.get("quantity") or data.get("l")
+            if trade_id is None or fill_price is None or fill_base_amount is None:
+                self.logger().error(f"Missing trade fields in data: {data}")
+                return
+
+            fill_price = Decimal(str(fill_price))
+            fill_base_amount = Decimal(str(fill_base_amount))
             fill_quote_amount = fill_price * fill_base_amount
 
             trade_update = TradeUpdate(
-                trade_id=data["tradeId"],
+                trade_id=str(trade_id),
                 client_order_id=client_order_id,
                 exchange_order_id=data.get("orderId"),
                 trading_pair=tracked_order.trading_pair,
                 # WebSocket timestamps are in microseconds, convert to seconds
-                fill_timestamp=data.get("timestamp", self.current_timestamp * 1_000_000) / 1_000_000,
+                fill_timestamp=data.get("T", data.get("timestamp", self.current_timestamp * 1_000_000)) / 1_000_000,
                 fill_price=fill_price,
                 fill_base_amount=fill_base_amount,
                 fill_quote_amount=fill_quote_amount,
@@ -1218,8 +1236,8 @@ class BackpackExchange(ExchangePyBase):
                     order_side=tracked_order.trade_type,
                     amount=fill_base_amount,
                     price=fill_price,
-                    fee_asset=data.get("feeAsset"),
-                    fee_amount=Decimal(data.get("fee", "0")),
+                    fee_asset=data.get("feeSymbol") or data.get("N") or tracked_order.quote_asset,
+                    fee_amount=Decimal(str(data.get("fee", data.get("n", "0")))),
                 ),
             )
 

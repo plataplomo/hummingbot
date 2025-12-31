@@ -2,6 +2,7 @@
 
 import secrets
 import time
+from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal
 
@@ -176,6 +177,27 @@ def get_new_client_order_id(
         order_id = f"{CONSTANTS.BROKER_ID}-{timestamp_str}-{side}-{pair_abbrev}"
 
     return order_id
+
+
+def parse_fill_timestamp(timestamp: str | float | int | None) -> float:
+    """Parse fill timestamp from ISO strings or epoch microseconds.
+
+    Args:
+        timestamp: ISO string (UTC), microseconds as int/str, or None
+
+    Returns:
+        Timestamp in seconds.
+    """
+    if timestamp is None:
+        return time.time()
+
+    if isinstance(timestamp, str):
+        if "T" in timestamp:
+            dt = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+            return dt.timestamp()
+        return int(timestamp) / 1_000_000
+
+    return float(timestamp) / 1_000_000
 
 
 def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:

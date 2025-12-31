@@ -113,7 +113,7 @@ class BackpackAPIUserStreamDataSource(UserStreamTrackerDataSource):
             window = str(CONSTANTS.AUTH_WINDOW_MS)
 
             # Build auth payload
-            auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
+            auth_payload = f"instruction={CONSTANTS.WS_AUTH_INSTRUCTION}&timestamp={timestamp}&window={window}"
             signature = self._auth._generate_signature(auth_payload)
 
             # Subscribe to private channels with authentication

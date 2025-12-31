@@ -1,5 +1,5 @@
 """Authentication for Backpack Perpetual Exchange using Ed25519 signatures.
-Reuses the same authentication logic as the spot connector.
+Implements Backpack's instruction-based signing scheme for perpetual endpoints.
 """
 
 import base64
@@ -118,7 +118,7 @@ class BackpackPerpetualAuth(AuthBase):
         path: str,
         params: dict[str, Any] | None = None,
         body: str | None = None,
-        window: str = "5000",
+        window: str = str(CONSTANTS.AUTH_WINDOW_MS),
     ) -> str:
         """Build the payload string for signing using instruction-based format.
 
@@ -187,7 +187,7 @@ class BackpackPerpetualAuth(AuthBase):
             Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
         """
         timestamp = str(self._get_timestamp())
-        window = "5000"
+        window = str(CONSTANTS.AUTH_WINDOW_MS)
 
         # Build signature payload using instruction-based format
         signature_payload = self._build_signature_payload(
@@ -296,11 +296,11 @@ class BackpackPerpetualAuth(AuthBase):
 
         # Build auth payload for WebSocket using instruction-based format
         # For WebSocket auth, the instruction is "subscribe"
-        auth_payload = f"instruction=subscribe&timestamp={timestamp}&window={window}"
+        auth_payload = f"instruction={CONSTANTS.WS_AUTH_INSTRUCTION}&timestamp={timestamp}&window={window}"
         signature = self._generate_signature(auth_payload)
 
         return {
-            "method": "auth",
+            "method": CONSTANTS.WS_AUTH_MESSAGE_METHOD,
             "params": {
                 "apiKey": self.api_key,
                 "timestamp": timestamp,

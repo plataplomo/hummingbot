@@ -14,7 +14,7 @@ DEFAULT_DOMAIN = "backpack"
 
 # Client order ID settings
 HBOT_ORDER_ID_PREFIX = ""  # No prefix needed since we map to numeric IDs
-MAX_ORDER_ID_LEN = 36  # Standard Hummingbot ID length
+MAX_ORDER_ID_LEN = 32  # Standard Hummingbot ID length
 
 # Base URLs
 # Backpack does not have a testnet, so we only have mainnet configuration
@@ -33,6 +33,7 @@ EXCHANGE_INFO_URL = "api/v1/markets"  # Fixed from "api/v1/capital"
 TICKER_URL = "api/v1/ticker"
 TICKERS_URL = "api/v1/tickers"
 DEPTH_URL = "api/v1/depth"
+ORDER_BOOK_DEPTH_LIMIT = 1000
 KLINES_URL = "api/v1/klines"
 TRADES_URL = "api/v1/trades"
 
@@ -46,18 +47,41 @@ BALANCES_URL = "api/v1/capital"  # Backpack uses /capital for balance informatio
 COLLATERAL_URL = "api/v1/capital/collateral"  # Collateral endpoint for auto-lent funds
 ACCOUNT_URL = "api/v1/account"  # Account info endpoint (may contain fee rates)
 
+# Instruction map for signing authenticated requests (from openapi_backpack.json)
+INSTRUCTION_MAP = {
+    # Account endpoints
+    ("GET", f"/{ACCOUNT_URL}"): "accountQuery",
+    ("PATCH", f"/{ACCOUNT_URL}"): "accountUpdate",
+    # Capital and balance endpoints
+    ("GET", f"/{BALANCES_URL}"): "balanceQuery",
+    ("GET", f"/{COLLATERAL_URL}"): "collateralQuery",
+    # Order management endpoints
+    ("POST", f"/{ORDER_URL}"): "orderExecute",
+    ("DELETE", f"/{CANCEL_ORDER_URL}"): "orderCancel",
+    ("DELETE", f"/{OPEN_ORDERS_URL}"): "orderCancelAll",
+    ("GET", f"/{ORDER_URL}"): "orderQuery",
+    ("GET", f"/{OPEN_ORDERS_URL}"): "orderQueryAll",
+    # Historical data endpoints
+    ("GET", f"/{ORDER_HISTORY_URL}"): "orderHistoryQueryAll",
+    ("GET", f"/{FILLS_URL}"): "fillHistoryQueryAll",
+}
+
 # WebSocket channels
 # Note: Public channels require symbol suffix (e.g., "depth.SOL_USDC")
 WS_DEPTH_CHANNEL = "depth"  # Full format: depth.<symbol>
 WS_TRADES_CHANNEL = "trade"  # Full format: trade.<symbol> (NOT "trades")
 WS_TICKER_CHANNEL = "ticker"  # Full format: ticker.<symbol>
 WS_KLINE_CHANNEL = "kline"  # Full format: kline.<interval>.<symbol>
+WS_AUTH_INSTRUCTION = "subscribe"
+WS_AUTH_MESSAGE_METHOD = "auth"
 
 # Private WebSocket channels
 WS_ACCOUNT_ORDERS_CHANNEL = "account.orderUpdate"  # Documented in OpenAPI
 # Note: account.balanceUpdate is NOT documented in the OpenAPI - balance updates come through orderUpdate events
 WS_ACCOUNT_POSITIONS_CHANNEL = "account.positionUpdate"  # Note: Not applicable for spot
 WS_ACCOUNT_TRANSACTIONS_CHANNEL = "account.transactionUpdate"  # May not exist in API
+
+# WebSocket auth (used in signature payloads)
 
 # Rate limits based on official Backpack Discord information:
 # - All endpoints: 1000 requests per minute (16.67 requests per second)
@@ -170,7 +194,6 @@ RATE_LIMITS = [
 
 # Connector configuration
 BROKER_ID = "HBOT"
-MAX_ORDER_ID_LEN = 32
 
 # Order states mapping from Backpack to Hummingbot
 ORDER_STATE_MAP = {
@@ -179,6 +202,8 @@ ORDER_STATE_MAP = {
     "Filled": "FILLED",
     "Cancelled": "CANCELED",
     "Expired": "CANCELED",
+    "TriggerPending": "OPEN",
+    "TriggerFailed": "FAILED",
     "Rejected": "FAILED",
 }
 

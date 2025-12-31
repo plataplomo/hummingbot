@@ -167,7 +167,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         response = await web_utils.api_request(
             path=CONSTANTS.ORDER_BOOK_URL,
             api_factory=self._api_factory,
-            params={"symbol": symbol, "limit": 100},
+            params={"symbol": symbol, "limit": CONSTANTS.ORDER_BOOK_DEPTH_LIMIT},
             method=RESTMethod.GET,
             is_auth_required=False,
         )
@@ -293,6 +293,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             or inner_data.get("type") == "depth"
             or "bids" in inner_data
             or "asks" in inner_data
+            or "a" in inner_data
+            or "b" in inner_data
         )
 
     def _is_order_book_diff_message(self, data: dict[str, Any]) -> bool:
@@ -309,7 +311,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             is_auth_required=False,
         )
 
-        symbols = response.get("symbols", []) if isinstance(response, dict) else []
+        symbols = web_utils.normalize_response_to_list(response)
         trading_pairs = []
         for symbol_info in symbols:
             try:
@@ -335,6 +337,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         return (
             inner_data.get("e") == "trade"
             or inner_data.get("type") == "trade"
+            or ("p" in inner_data and "q" in inner_data and "m" in inner_data)
             or ("price" in inner_data and "quantity" in inner_data and "side" in inner_data)
         )
 
@@ -367,21 +370,30 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             if not trading_pair or trading_pair not in self._trading_pairs:
                 return
 
-            # Create trade message
+            trade_id = trade_data.get("t", trade_data.get("tradeId", trade_data.get("id")))
+            if trade_id is None:
+                return
+
+            side = trade_data.get("side")
+            if side:
+                trade_type = (
+                    float(TradeType.BUY.value)
+                    if str(side).upper() in ["BUY", "BID"]
+                    else float(TradeType.SELL.value)
+                )
+            else:
+                is_buyer_maker = trade_data.get("m", False)
+                trade_type = float(TradeType.SELL.value) if is_buyer_maker else float(TradeType.BUY.value)
+
             trade_message = OrderBookMessage(
                 message_type=OrderBookMessageType.TRADE,
                 content={
                     "trading_pair": trading_pair,
-                    "trade_id": str(trade_data.get("tradeId", trade_data.get("id", ""))),
-                    "price": trade_data.get("price", 0),
-                    "amount": trade_data.get("quantity", trade_data.get("q", 0)),
-                    "trade_type": (
-                        float(TradeType.BUY.value)
-                        if trade_data.get("side", "").upper() in ["BUY", "BID"]
-                        else float(TradeType.SELL.value)
-                    ),
+                    "trade_id": str(trade_id),
+                    "price": trade_data.get("p", trade_data.get("price", 0)),
+                    "amount": trade_data.get("q", trade_data.get("quantity", 0)),
+                    "trade_type": trade_type,
                 },
-                # WebSocket T field is in microseconds
                 timestamp=trade_data.get("timestamp", trade_data.get("T", time.time() * 1_000_000)) / 1_000_000,
             )
 

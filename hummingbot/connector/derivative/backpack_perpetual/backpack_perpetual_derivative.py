@@ -460,7 +460,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         path_url=CONSTANTS.FILLS_URL,
                         params={"symbol": exchange_symbol},
                         is_auth_required=True,
-                        limit_id=CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID,
+                        limit_id=CONSTANTS.FILLS_URL,
                     ),
                 )
 
@@ -477,16 +477,18 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     )
                     continue
 
-                fills_data = result.get("fills", []) if isinstance(result, dict) else []
+                fills_data = web_utils.normalize_response_to_list(result)
 
                 for fill in fills_data:
+                    if not isinstance(fill, dict):
+                        continue
                     order_id = str(fill.get("orderId", ""))
                     if order_map and order_id in order_map:
                         tracked_order: InFlightOrder = order_map[order_id]
 
                         # Validate required fields exist (no fallbacks for critical data)
                         trade_id = fill.get("tradeId")
-                        if not trade_id:
+                        if trade_id is None:
                             self.logger().error(f"Fill missing tradeId for order {order_id}: {fill}")
                             continue
 
@@ -495,7 +497,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         timestamp = fill.get("timestamp")
                         side = fill.get("side")
 
-                        if not all([quantity, price, timestamp, side]):
+                        if quantity is None or price is None or timestamp is None or side is None:
                             self.logger().error(
                                 f"Fill missing required fields for order {order_id}. "
                                 f"quantity={quantity}, price={price}, timestamp={timestamp}, side={side}",
@@ -503,7 +505,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                             continue
 
                         # Validate side value
-                        if side not in ["Buy", "Sell"]:
+                        if side not in ["Bid", "Ask", "Buy", "Sell"]:
                             self.logger().error(f"Invalid side value '{side}' for order {order_id}")
                             continue
 
@@ -511,6 +513,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         # Note: fee might be 0 for maker orders, so we don't require it
                         fee_amount = Decimal(str(fill.get("fee", "0")))
                         fee_asset = fill.get("feeSymbol", "")
+                        if not fee_asset:
+                            self.logger().error(f"Fill missing feeSymbol for order {order_id}: {fill}")
+                            continue
 
                         # Determine position action based on trade direction and current position
                         # Backpack uses ONEWAY mode: one position per trading pair
@@ -522,12 +527,12 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         if current_position is not None:
                             # We have an existing position
                             current_side = current_position.position_side
-                            if tracked_order.trade_type is TradeType.BUY:
+                            if side in ["Bid", "Buy"]:
                                 # BUY order: opens LONG or closes SHORT
                                 position_action = (PositionAction.OPEN
                                                    if current_side == PositionSide.LONG
                                                    else PositionAction.CLOSE)
-                            else:  # SELL
+                            else:  # Ask/Sell
                                 # SELL order: opens SHORT or closes LONG
                                 position_action = (PositionAction.OPEN
                                                    if current_side == PositionSide.SHORT
@@ -556,7 +561,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                             fill_base_amount=fill_base_amount,
                             fill_quote_amount=fill_base_amount * fill_price,
                             fill_price=fill_price,
-                            fill_timestamp=timestamp * 1e-3,  # Backpack uses milliseconds
+                            fill_timestamp=utils.parse_fill_timestamp(timestamp),
                         )
                         self._order_tracker.process_trade_update(trade_update)
 
@@ -1231,9 +1236,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         # Look for our order - Backpack uses 'id' not 'orderId'
         # Normalize response to list of orders
         orders = web_utils.normalize_response_to_list(response)
+        numeric_client_id = self._id_mapper.get_numeric_id(tracked_order.client_order_id)
         for order_data in orders:
             if isinstance(order_data, dict) and (
-                order_data.get("clientId") == tracked_order.client_order_id
+                order_data.get("clientId") == numeric_client_id
                 or order_data.get("id") == tracked_order.exchange_order_id
             ):
                 return self._parse_order_update(order_data, tracked_order)
@@ -1249,7 +1255,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         history_orders = web_utils.normalize_response_to_list(history_response)
         for order_data in history_orders:
             if isinstance(order_data, dict) and (
-                order_data.get("clientId") == tracked_order.client_order_id
+                order_data.get("clientId") == numeric_client_id
                 or order_data.get("id") == tracked_order.exchange_order_id
             ):
                 return self._parse_order_update(order_data, tracked_order)
@@ -1272,7 +1278,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             trading_pair=tracked_order.trading_pair,
             update_timestamp=self.current_timestamp,
             new_state=state,
-            client_order_id=order_data.get("clientId", tracked_order.client_order_id),
+            client_order_id=tracked_order.client_order_id,
             exchange_order_id=order_data.get("id", tracked_order.exchange_order_id),
         )
 
@@ -1297,7 +1303,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 client_order_id=order.client_order_id,
                 exchange_order_id=str(order.exchange_order_id),  # Convert to string like Binance does
                 trading_pair=order.trading_pair,
-                fill_timestamp=float(fill_data["timestamp"]),  # Required field from API
+                fill_timestamp=utils.parse_fill_timestamp(fill_data.get("timestamp")),
                 fill_price=Decimal(str(fill_data["price"])),  # Required field
                 fill_base_amount=Decimal(str(fill_data["quantity"])),  # Required field
                 fill_quote_amount=Decimal(str(fill_data["price"])) * Decimal(str(fill_data["quantity"])),
@@ -1312,7 +1318,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     def _get_trade_fee_from_fill(self, fill_data: dict[str, Any], trading_pair: str | None = None) -> TradeFeeBase:
         """Extract trade fee from fill data."""
         fee_amount = Decimal(str(fill_data.get("fee", "0")))
-        fee_asset = fill_data.get("feeAsset")  # Get fee asset from API
+        fee_asset = fill_data.get("feeSymbol") or fill_data.get("feeAsset") or fill_data.get("N")
         if not fee_asset:
             # If fee asset not specified, get collateral token from trading rules
             # This matches how Binance handles missing fee asset
@@ -1328,16 +1334,16 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         if trading_pair:
             position_key = self._perpetual_trading.position_key(trading_pair)
             current_position = self._perpetual_trading.get_position(position_key)
-            side = fill_data.get("side")  # "Buy" or "Sell"
+            side = fill_data.get("side")  # "Bid"/"Ask" (API) or "Buy"/"Sell" (legacy/tests)
 
             if current_position is not None and side:
                 current_side = current_position.position_side
-                if side == "Buy":
+                if side in ["Bid", "Buy"]:
                     # BUY order: opens LONG or closes SHORT
                     position_action = (PositionAction.OPEN
                                        if current_side == PositionSide.LONG
                                        else PositionAction.CLOSE)
-                elif side == "Sell":
+                elif side in ["Ask", "Sell"]:
                     # SELL order: opens SHORT or closes LONG
                     position_action = (PositionAction.OPEN
                                        if current_side == PositionSide.SHORT
@@ -1544,9 +1550,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             # Handle both order updates and trade fills
             data = order_msg.get("data", order_msg)
 
-            event_type = order_msg.get("type") or data.get("e")
+            event_type = data.get("e") or order_msg.get("type")
 
-            if event_type in ["fill", "orderFill"] or "tradeId" in data:
+            if event_type in ["fill", "orderFill"] or data.get("tradeId") is not None or data.get("t") is not None:
                 # Process trade fill
                 self._process_trade_fill(data)
             elif event_type == "orderCancelled":
@@ -1667,7 +1673,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
             # Get fee details - WebSocket uses "n" for fee, "N" for fee asset
             fee_amount = Decimal(str(fill_data.get("fee") or fill_data.get("n", "0")))
-            fee_asset = fill_data.get("feeAsset") or fill_data.get("N") or tracked_order.quote_asset
+            fee_asset = fill_data.get("feeSymbol") or fill_data.get("feeAsset") or fill_data.get("N") or tracked_order.quote_asset
 
             # Create flat_fees list - always include even if fee is zero
             flat_fees = [TokenAmount(token=fee_asset, amount=fee_amount)]
@@ -1685,7 +1691,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             trade_id = fill_data.get("tradeId") or fill_data.get("t")
             fill_quantity = fill_data.get("quantity") or fill_data.get("l")
             fill_price = fill_data.get("price") or fill_data.get("L")
-            timestamp = fill_data.get("timestamp") or fill_data.get("T")  # T is engine timestamp in microseconds
+            timestamp = fill_data.get("timestamp") or fill_data.get("T")
 
             if not all([trade_id, fill_quantity, fill_price]):
                 self.logger().error(
@@ -1705,7 +1711,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 exchange_order_id=str(exchange_order_id),
                 trading_pair=tracked_order.trading_pair,
                 # WebSocket timestamps are in microseconds
-                fill_timestamp=(timestamp or self.current_timestamp * 1_000_000) / 1_000_000,
+                fill_timestamp=utils.parse_fill_timestamp(timestamp),
                 fill_price=Decimal(str(fill_price)),
                 fill_base_amount=Decimal(str(fill_quantity)),
                 fill_quote_amount=Decimal(str(fill_price)) * Decimal(str(fill_quantity)),
@@ -1723,7 +1729,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     client_order_id=tracked_order.client_order_id,
                     exchange_order_id=str(exchange_order_id),
                     trading_pair=tracked_order.trading_pair,
-                    update_timestamp=(timestamp or self.current_timestamp * 1_000_000) / 1_000_000,
+                    update_timestamp=utils.parse_fill_timestamp(timestamp),
                     new_state=OrderState.FILLED,
                 )
                 self._order_tracker.process_order_update(order_update)
@@ -1740,8 +1746,15 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     def _process_order_status_update(self, order_data: dict[str, Any]):
         """Process order status update."""
         try:
-            # Handle both REST (clientId) and WebSocket (c) field names
-            client_order_id = order_data.get("clientId") or order_data.get("c")
+            raw_client_id = order_data.get("clientId") or order_data.get("c")
+            client_order_id = None
+            if raw_client_id is not None:
+                try:
+                    numeric_client_id = int(raw_client_id)
+                    client_order_id = self._id_mapper.get_hb_id(numeric_client_id)
+                except (TypeError, ValueError):
+                    client_order_id = str(raw_client_id)
+
             if not client_order_id:
                 # If no client order ID, try to use exchange order ID to find order
                 exchange_order_id = order_data.get("orderId") or order_data.get("id") or order_data.get("i")
@@ -1810,8 +1823,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
             # Create order update - Backpack uses 'id' field for order ID
             order_update = OrderUpdate(
-                client_order_id=client_order_id,
-                exchange_order_id=order_data.get("id") or order_data.get("orderId"),  # Handle both formats
+                client_order_id=tracked_order.client_order_id,
+                exchange_order_id=order_data.get("id") or order_data.get("orderId") or order_data.get("i"),
                 trading_pair=tracked_order.trading_pair,
                 # WebSocket timestamps are in microseconds
                 update_timestamp=(order_data.get("timestamp") or self.current_timestamp * 1_000_000) / 1_000_000,
@@ -2107,25 +2120,22 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         try:
             # Set the account-wide leverage limit via API
             # Use direct REST call to handle empty response properly
-            base_url = CONSTANTS.REST_URLS.get(self._domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-            url = f"{base_url}api/v1/account"
+            url = web_utils.private_rest_url(CONSTANTS.ACCOUNT_URL, domain=self._domain)
 
             rest_assistant = await self._web_assistants_factory.get_rest_assistant()
 
-            async with self._throttler.execute_task(CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID):
-                response = await rest_assistant.execute_request_and_get_response(
-                    url=url,
-                    throttler_limit_id=CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID,
-                    data={"leverageLimit": str(leverage)},
-                    method=RESTMethod.PATCH,
-                    is_auth_required=True,
-                    headers={"Content-Type": "application/json"},
-                )
+            response = await rest_assistant.execute_request_and_get_response(
+                url=url,
+                throttler_limit_id=CONSTANTS.ACCOUNT_URL,
+                data={"leverageLimit": str(leverage)},
+                method=RESTMethod.PATCH,
+                is_auth_required=True,
+                headers={"Content-Type": "application/json"},
+            )
 
-                # Check if successful (200 status)
-                if response.status != 200:
-                    text = await response.text()
-                    raise Exception(f"HTTP {response.status}: {text}")
+            if response.status != 200:
+                text = await response.text()
+                raise Exception(f"HTTP {response.status}: {text}")
 
             # Success - Store the leverage locally for calculations
             self._leverage_map[trading_pair] = leverage

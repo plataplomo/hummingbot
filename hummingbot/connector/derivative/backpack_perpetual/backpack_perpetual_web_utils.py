@@ -217,45 +217,42 @@ async def api_request(
             domain=domain,
         )
 
-    # Determine rate limit ID
+    normalized_path = path.lstrip("/")
     if limit_id is None:
-        limit_id = CONSTANTS.PRIVATE_ENDPOINT_LIMIT_ID if is_auth_required else CONSTANTS.PUBLIC_ENDPOINT_LIMIT_ID
+        limit_id = normalized_path
 
     # Build full URL
     base_url = CONSTANTS.REST_URLS.get(domain, CONSTANTS.REST_URLS[CONSTANTS.DEFAULT_DOMAIN])
-    url = f"{base_url}{path}"
+    url = f"{base_url}{normalized_path}"
 
     # Get REST assistant
     rest_assistant = await api_factory.get_rest_assistant()
 
-    # Execute request with rate limiting
-    async with throttler.execute_task(limit_id):
-        try:
-            response = await rest_assistant.execute_request(
-                url=url,
-                method=method,
-                throttler_limit_id=limit_id,
-                params=params,
-                data=data,
-                headers=headers,
-                timeout=timeout,
-                is_auth_required=is_auth_required,
-            )
+    try:
+        response = await rest_assistant.execute_request(
+            url=url,
+            method=method,
+            throttler_limit_id=limit_id,
+            params=params,
+            data=data,
+            headers=headers,
+            timeout=timeout,
+            is_auth_required=is_auth_required,
+        )
 
-            # For PATCH requests that return 200 with no content, return empty dict
-            if method == RESTMethod.PATCH and not response:
-                return {}
+        # For PATCH requests that return 200 with no content, return empty dict
+        if method == RESTMethod.PATCH and not response:
+            return {}
 
-            # Response could be str or dict from execute_request
-            if isinstance(response, str):
-                # Try to parse as JSON if it's a string
-                return json.loads(response) if response else {}
-            return response
+        # Response could be str or dict from execute_request
+        if isinstance(response, str):
+            return json.loads(response) if response else {}
+        return response
 
-        except asyncio.TimeoutError as e:
-            raise OSError(f"API request timeout {method} {url}") from e
-        except Exception as e:
-            raise OSError(f"Error in API request {method} {url}: {e!s}") from e
+    except asyncio.TimeoutError as e:
+        raise OSError(f"API request timeout {method} {url}") from e
+    except Exception as e:
+        raise OSError(f"Error in API request {method} {url}: {e!s}") from e
 
 
 async def api_request_dict(
