@@ -10,7 +10,7 @@ from hummingbot.core.data_type.common import OrderType, TradeType
 EXCHANGE_NAME = "backpack"
 
 # Default domain
-DEFAULT_DOMAIN = "backpack"
+DEFAULT_DOMAIN = "exchange"
 
 # Client order ID settings
 HBOT_ORDER_ID_PREFIX = ""  # No prefix needed since we map to numeric IDs
@@ -19,10 +19,10 @@ MAX_ORDER_ID_LEN = 32  # Standard Hummingbot ID length
 # Base URLs
 # Backpack does not have a testnet, so we only have mainnet configuration
 REST_URLS = {
-    "backpack": "https://api.backpack.exchange/",
+    DEFAULT_DOMAIN: "https://api.backpack.exchange/",
 }
 WSS_URLS = {
-    "backpack": "wss://ws.backpack.exchange/",
+    DEFAULT_DOMAIN: "wss://ws.backpack.exchange/",
 }
 
 # Public REST API endpoints

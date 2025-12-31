@@ -5,7 +5,7 @@ from hummingbot.core.data_type.common import OrderType, PositionMode, TradeType
 
 # Exchange name
 EXCHANGE_NAME = "backpack_perpetual"
-DEFAULT_DOMAIN = "backpack_perpetual"
+DEFAULT_DOMAIN = "exchange"
 
 # Position mode - Backpack only supports ONEWAY mode
 DEFAULT_POSITION_MODE = PositionMode.ONEWAY
@@ -14,10 +14,10 @@ SUPPORTED_POSITION_MODES = [PositionMode.ONEWAY]  # Backpack only supports one-w
 # Base URLs
 # Backpack does not have a testnet, so we only have mainnet configuration
 REST_URLS = {
-    "backpack_perpetual": "https://api.backpack.exchange/",
+    DEFAULT_DOMAIN: "https://api.backpack.exchange/",
 }
 WSS_URLS = {
-    "backpack_perpetual": "wss://ws.backpack.exchange/",
+    DEFAULT_DOMAIN: "wss://ws.backpack.exchange/",
 }
 
 # Convenience alias used in tests
@@ -100,6 +100,11 @@ WS_OPEN_INTEREST_CHANNEL = "openInterest"  # Full format: openInterest.<symbol>
 WS_AUTH_INSTRUCTION = "subscribe"
 WS_AUTH_MESSAGE_METHOD = "auth"
 
+# WebSocket throttling identifiers
+WS_CONNECTION_LIMIT_ID = "WSConnection"
+WS_PUBLIC_SUBSCRIPTION_LIMIT_ID = "WSPublicSubscription"
+WS_PRIVATE_SUBSCRIPTION_LIMIT_ID = "WSPrivateSubscription"
+
 # Order configuration
 BROKER_ID = "HBOT"
 MAX_ORDER_ID_LEN = 32
@@ -118,6 +123,25 @@ RATE_LIMITS = [
     RateLimit(limit_id=PRIVATE_ENDPOINT_LIMIT_ID, limit=1000, time_interval=60),
     # Historical endpoints - 60 requests per 2 minutes
     RateLimit(limit_id=HISTORICAL_ENDPOINT_LIMIT_ID, limit=60, time_interval=120),
+    # WebSocket connection and subscriptions
+    RateLimit(
+        limit_id=WS_CONNECTION_LIMIT_ID,
+        limit=1000,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=WS_PUBLIC_SUBSCRIPTION_LIMIT_ID,
+        limit=1000,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
+    RateLimit(
+        limit_id=WS_PRIVATE_SUBSCRIPTION_LIMIT_ID,
+        limit=1000,
+        time_interval=60,
+        linked_limits=[LinkedLimitWeightPair(PRIVATE_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
     # Order management endpoints (private) - share the main 1000/min limit
     RateLimit(
         limit_id=ORDER_URL,
@@ -240,6 +264,12 @@ RATE_LIMITS = [
         time_interval=1,
         linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
     ),
+    RateLimit(
+        limit_id=PING_URL,
+        limit=16,  # ~16.67 requests per second
+        time_interval=1,
+        linked_limits=[LinkedLimitWeightPair(PUBLIC_ENDPOINT_LIMIT_ID, weight=1)],
+    ),
 ]
 
 # Order type mapping
@@ -263,6 +293,7 @@ ORDER_STATE_MAP = {
     "PartiallyFilled": "PARTIALLY_FILLED",
     "Filled": "FILLED",
     "Cancelled": "CANCELED",
+    "Canceled": "CANCELED",
     "PendingCancel": "PENDING_CANCEL",
     "TriggerPending": "OPEN",
     "TriggerFailed": "FAILED",

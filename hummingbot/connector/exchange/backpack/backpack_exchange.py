@@ -1153,7 +1153,7 @@ class BackpackExchange(ExchangePyBase):
                     self._process_trade_message(event_message)
 
             except Exception:
-                self.logger().error("Error processing user stream event", exc_info=True)
+                self.logger().error("Unexpected error in user stream listener loop.", exc_info=True)
 
     def _process_order_message(self, order_msg: dict[str, Any]):
         """Process order update message from user stream."""

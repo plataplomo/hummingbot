@@ -2,6 +2,7 @@
 Main derivative class implementing perpetual futures trading functionality.
 """
 
+import copy
 import math
 import time
 from datetime import datetime
@@ -93,6 +94,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         self._account_imf: Decimal | None = None  # Initial margin fraction from collateral endpoint
         self._account_mmf: Decimal | None = None  # Maintenance margin fraction from collateral endpoint
         self._funding_info_cache: dict[str, tuple[FundingInfo, float]] = {}  # Cache funding info with timestamp
+        self._real_time_balance_update = False  # Backpack does not provide WS balance updates in openapi
         # Initialize ID mapper for client order IDs
         self._id_mapper = utils.BackpackIDMapper()
         super().__init__(balance_asset_limit, rate_limits_share_pct)
@@ -145,7 +147,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     @property
     def check_network_request_path(self) -> str:
-        return CONSTANTS.TIME_URL
+        return CONSTANTS.PING_URL
 
     @property
     def trading_pairs(self) -> list[str]:
@@ -491,6 +493,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         if trade_id is None:
                             self.logger().error(f"Fill missing tradeId for order {order_id}: {fill}")
                             continue
+                        trade_id_str = str(trade_id)
 
                         quantity = fill.get("quantity")
                         price = fill.get("price")
@@ -552,8 +555,11 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         fill_base_amount = Decimal(str(quantity))
                         fill_price = Decimal(str(price))
 
+                        if trade_id_str in tracked_order.order_fills:
+                            continue
+
                         trade_update = TradeUpdate(
-                            trade_id=str(trade_id),
+                            trade_id=trade_id_str,
                             client_order_id=tracked_order.client_order_id,
                             exchange_order_id=order_id,
                             trading_pair=tracked_order.trading_pair,
@@ -839,7 +845,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             collateral_data = await self._api_get(
                 path_url=CONSTANTS.COLLATERAL_URL,
                 is_auth_required=True,
-                limit_id=CONSTANTS.BALANCE_URL,
+                limit_id=CONSTANTS.COLLATERAL_URL,
             )
             self.logger().debug(f"Collateral data received: {collateral_data}")
 
@@ -865,6 +871,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 # When you place an order, Backpack automatically unlends what's needed
                 # So we add lendQuantity to availableQuantity to get true available balance
                 self._account_available_balances[symbol] = available_quantity + lend_quantity
+
+            if not self._real_time_balance_update:
+                self._in_flight_orders_snapshot = {k: copy.copy(v) for k, v in self._in_flight_orders.items()}
+                self._in_flight_orders_snapshot_timestamp = self.current_timestamp
 
         except Exception as e:
             self.logger().error(f"Failed to update balances: {e}", exc_info=True)
@@ -1225,24 +1235,29 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
     async def _request_order_status(self, tracked_order: InFlightOrder) -> OrderUpdate:
         """Request current order status from exchange."""
         symbol = utils.convert_to_exchange_trading_pair(tracked_order.trading_pair)
-
-        # Query open orders
-        response = await self._api_get(
-            path_url=CONSTANTS.OPEN_ORDERS_URL,
-            params={"symbol": symbol},
-            is_auth_required=True,
-        )
-
-        # Look for our order - Backpack uses 'id' not 'orderId'
-        # Normalize response to list of orders
-        orders = web_utils.normalize_response_to_list(response)
         numeric_client_id = self._id_mapper.get_numeric_id(tracked_order.client_order_id)
-        for order_data in orders:
-            if isinstance(order_data, dict) and (
-                order_data.get("clientId") == numeric_client_id
-                or order_data.get("id") == tracked_order.exchange_order_id
-            ):
-                return self._parse_order_update(order_data, tracked_order)
+
+        # Query single open order by id or client id
+        try:
+            order_params: dict[str, Any] = {"symbol": symbol}
+            if tracked_order.exchange_order_id:
+                order_params["orderId"] = tracked_order.exchange_order_id
+            else:
+                order_params["clientId"] = numeric_client_id
+
+            order_response = await self._api_get(
+                path_url=CONSTANTS.ORDER_URL,
+                params=order_params,
+                is_auth_required=True,
+            )
+
+            if isinstance(order_response, dict) and order_response:
+                return self._parse_order_update(order_response, tracked_order)
+        except Exception as e:
+            if not self._is_order_not_found_during_status_update_error(e):
+                self.logger().warning(
+                    f"Error querying order status for {tracked_order.client_order_id}: {e}",
+                )
 
         # If not in open orders, check order history
         history_response = await self._api_get(
@@ -1271,7 +1286,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
     def _parse_order_update(self, order_data: dict[str, Any], tracked_order: InFlightOrder) -> OrderUpdate:
         """Parse order data into OrderUpdate."""
-        status = order_data.get("status", "")
+        status = order_data.get("status") or order_data.get("X") or order_data.get("x") or ""
         state = OrderState[CONSTANTS.ORDER_STATE_MAP.get(status, "FAILED")]
 
         return OrderUpdate(
@@ -1555,6 +1570,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             if event_type in ["fill", "orderFill"] or data.get("tradeId") is not None or data.get("t") is not None:
                 # Process trade fill
                 self._process_trade_fill(data)
+                # Apply status update from the same payload when available
+                self._process_order_status_update(data)
             elif event_type == "orderCancelled":
                 # Handle order cancelled event - immediately mark as cancelled
                 self._process_order_cancelled_event(data)
@@ -1602,7 +1619,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 # Create order update marking it as cancelled
                 order_update = OrderUpdate(
                     trading_pair=tracked_order.trading_pair,
-                    update_timestamp=self.current_timestamp,
+                    update_timestamp=utils.parse_fill_timestamp(
+                        cancel_data.get("timestamp") or cancel_data.get("T") or cancel_data.get("E"),
+                    ),
                     new_state=OrderState.CANCELED,
                     client_order_id=tracked_order.client_order_id,
                     exchange_order_id=tracked_order.exchange_order_id,
@@ -1693,20 +1712,21 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             fill_price = fill_data.get("price") or fill_data.get("L")
             timestamp = fill_data.get("timestamp") or fill_data.get("T")
 
-            if not all([trade_id, fill_quantity, fill_price]):
+            if trade_id is None or fill_quantity is None or fill_price is None:
                 self.logger().error(
                     f"Missing required fill fields: trade_id={trade_id}, "
                     f"quantity={fill_quantity}, price={fill_price}",
                 )
                 return
+            trade_id_str = str(trade_id)
 
             # Ignore duplicate fills
-            if trade_id in tracked_order.order_fills:
+            if trade_id_str in tracked_order.order_fills:
                 return
 
             # Create trade update
             trade_update = TradeUpdate(
-                trade_id=str(trade_id),
+                trade_id=trade_id_str,
                 client_order_id=tracked_order.client_order_id,
                 exchange_order_id=str(exchange_order_id),
                 trading_pair=tracked_order.trading_pair,
@@ -1720,10 +1740,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
             self._order_tracker.process_trade_update(trade_update)
 
-            # Check if order is fully filled and update state accordingly
-            # The WebSocket event 'orderFill' means a fill occurred, check if complete
-            executed_amount = tracked_order.executed_amount_base + Decimal(str(fill_quantity))
-            if executed_amount >= tracked_order.amount:
+            if tracked_order.is_filled:
                 # Order is fully filled, update its state
                 order_update = OrderUpdate(
                     client_order_id=tracked_order.client_order_id,
@@ -1772,14 +1789,17 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             if not tracked_order:
                 # For new orders from WebSocket, create an InFlightOrder
                 exchange_order_id = order_data.get("orderId") or order_data.get("id") or order_data.get("i")
-                if exchange_order_id and order_data.get("status") in ["NEW", "New"]:
+                status = order_data.get("status") or order_data.get("X") or order_data.get("x")
+                if exchange_order_id and status in ["NEW", "New"]:
                     # Extract order details
                     symbol = order_data.get("symbol") or order_data.get("s")
                     if not symbol:
                         return
 
                     # Convert symbol to trading pair
-                    trading_pair = symbol.replace("_", "-")
+                    trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+                    if trading_pair is None:
+                        return
 
                     # Map side
                     side = order_data.get("side") or order_data.get("S")
@@ -1808,8 +1828,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                         price=price,
                         amount=quantity,
                         # WebSocket timestamps are in microseconds
-                        creation_timestamp=(
-                            float(order_data.get("timestamp", self.current_timestamp * 1_000_000)) / 1_000_000
+                        creation_timestamp=utils.parse_fill_timestamp(
+                            order_data.get("timestamp") or order_data.get("T") or order_data.get("E"),
                         ),
                     )
                     self._order_tracker.start_tracking_order(order)
@@ -1818,7 +1838,8 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     return
 
             # Map order status
-            order_state = CONSTANTS.ORDER_STATE_MAP.get(order_data.get("status") or "", "OPEN")
+            order_status = order_data.get("status") or order_data.get("X") or order_data.get("x") or ""
+            order_state = CONSTANTS.ORDER_STATE_MAP.get(order_status, "OPEN")
             new_state = OrderState[order_state]
 
             # Create order update - Backpack uses 'id' field for order ID
@@ -1827,7 +1848,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 exchange_order_id=order_data.get("id") or order_data.get("orderId") or order_data.get("i"),
                 trading_pair=tracked_order.trading_pair,
                 # WebSocket timestamps are in microseconds
-                update_timestamp=(order_data.get("timestamp") or self.current_timestamp * 1_000_000) / 1_000_000,
+                update_timestamp=utils.parse_fill_timestamp(
+                    order_data.get("timestamp") or order_data.get("T") or order_data.get("E"),
+                ),
                 new_state=new_state,
             )
 
@@ -1933,7 +1956,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
             account_info = await self._api_get(
                 path_url=CONSTANTS.ACCOUNT_URL,
                 is_auth_required=True,
-                limit_id=CONSTANTS.BALANCE_URL,  # Use balance rate limit
+                limit_id=CONSTANTS.ACCOUNT_URL,
             )
 
             # Extract and store fee rates if available
@@ -1989,19 +2012,28 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """
         trading_rules = []
 
-        for symbol_info in exchange_info_dict.get("symbols", []):
+        symbols_info = (
+            exchange_info_dict
+            if isinstance(exchange_info_dict, list)
+            else exchange_info_dict.get("symbols") or exchange_info_dict.get("data") or []
+        )
+
+        for symbol_info in symbols_info:
             try:
-                symbol = symbol_info["symbol"]
-                # Check for perpetual markets
-                if symbol_info.get("contractType") != "PERPETUAL":
+                symbol = symbol_info.get("symbol")
+                if not symbol or not utils.is_perpetual_symbol(symbol):
                     continue
 
-                trading_pair = await self.trading_pair_associated_to_exchange_symbol(symbol)
+                base = symbol_info.get("baseSymbol") or symbol_info.get("baseAsset")
+                quote = symbol_info.get("quoteSymbol") or symbol_info.get("quoteAsset")
+                trading_pair = f"{base}-{quote}" if base and quote else utils.convert_from_exchange_trading_pair(symbol)
+                if trading_pair is None:
+                    continue
 
                 # Extract from filters structure matching Backpack API
-                filters = symbol_info["filters"]
-                price_filter = filters["price"]
-                quantity_filter = filters["quantity"]
+                filters = symbol_info.get("filters", {})
+                price_filter = filters.get("price", {})
+                quantity_filter = filters.get("quantity", {})
                 notional_filter = filters.get("notional", {})
 
                 # Extract required values - no fallbacks
@@ -2019,7 +2051,7 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     min_notional = Decimal(str(min_notional))
 
                 # Get collateral token from symbol info (required field)
-                collateral_token = symbol_info["quoteSymbol"]
+                collateral_token = quote or trading_pair.split("-")[1]
 
                 trading_rule = TradingRule(
                     trading_pair=trading_pair,
@@ -2055,7 +2087,9 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
 
         # Handle exchange_info as list or dict
         symbols_list: list[dict[str, Any]] = (
-            exchange_info if isinstance(exchange_info, list) else exchange_info.get("symbols", [])
+            exchange_info
+            if isinstance(exchange_info, list)
+            else exchange_info.get("symbols") or exchange_info.get("data") or []
         )
 
         for symbol_info in symbols_list:
@@ -2065,8 +2099,10 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                     continue
 
                 # Get base and quote from API response
-                base = symbol_info["baseSymbol"]
-                quote = symbol_info["quoteSymbol"]
+                base = symbol_info.get("baseSymbol") or symbol_info.get("baseAsset")
+                quote = symbol_info.get("quoteSymbol") or symbol_info.get("quoteAsset")
+                if not base or not quote:
+                    continue
 
                 trading_pair = f"{base}-{quote}"
                 mapping[symbol] = trading_pair
@@ -2215,17 +2251,63 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
         """Make a network check request to verify connectivity.
         This is called by check_network() from the parent class.
 
-        Uses TIME endpoint since Backpack's ping returns plain text "pong", not JSON,
-        which is incompatible with the standard REST assistant used by Hummingbot.
+        Uses PING endpoint which returns plain text "pong".
         """
         api_factory = web_utils.build_api_factory_without_time_synchronizer_pre_processor(
             throttler=self._throttler,
         )
-        await web_utils.api_request(
-            path=CONSTANTS.TIME_URL,
-            api_factory=api_factory,
-            throttler=self._throttler,
-            domain=self._domain,
-            method=RESTMethod.GET,
-            is_auth_required=False,
-        )
+        rest_assistant = await api_factory.get_rest_assistant()
+        url = web_utils.public_rest_url(CONSTANTS.PING_URL, domain=self._domain)
+
+        async with self._throttler.execute_task(limit_id=CONSTANTS.PING_URL):
+            response = await rest_assistant.execute_request_and_get_response(
+                url=url,
+                method=RESTMethod.GET,
+                throttler_limit_id=CONSTANTS.PING_URL,
+                is_auth_required=False,
+            )
+
+        if response.status != 200:
+            text = await response.text()
+            raise IOError(f"Unexpected ping response {response.status}: {text}")
+
+    async def _update_time_synchronizer(self, pass_on_non_cancelled_error: bool = False):
+        """Update the time synchronizer using the exchange server time."""
+        try:
+            api_factory = web_utils.build_api_factory_without_time_synchronizer_pre_processor(
+                throttler=self._throttler,
+            )
+            rest_assistant = await api_factory.get_rest_assistant()
+            url = web_utils.public_rest_url(CONSTANTS.TIME_URL, domain=self._domain)
+
+            async with self._throttler.execute_task(limit_id=CONSTANTS.TIME_URL):
+                response = await rest_assistant.execute_request(
+                    url=url,
+                    method=RESTMethod.GET,
+                    throttler_limit_id=CONSTANTS.TIME_URL,
+                    is_auth_required=False,
+                )
+
+            timestamp_ms = None
+            if isinstance(response, dict):
+                timestamp_ms = response.get("serverTime") or response.get("timestamp") or response.get("time")
+            elif isinstance(response, (int, float, str)):
+                timestamp_ms = response
+
+            if timestamp_ms is None:
+                raise ValueError("Missing server time in response.")
+
+            timestamp_ms = float(timestamp_ms)
+
+            async def _time_provider():
+                return timestamp_ms
+
+            await self._time_synchronizer.update_server_time_offset_with_time_provider(
+                time_provider=_time_provider(),
+            )
+        except asyncio.CancelledError:
+            raise
+        except Exception:
+            self.logger().network("Error getting server time.")
+            if pass_on_non_cancelled_error:
+                raise

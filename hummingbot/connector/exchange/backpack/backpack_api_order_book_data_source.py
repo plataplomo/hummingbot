@@ -12,7 +12,7 @@ from hummingbot.connector.exchange.backpack import (
     backpack_web_utils as web_utils,
 )
 from hummingbot.connector.exchange.backpack.backpack_order_book import BackpackOrderBook
-from hummingbot.core.data_type.order_book_message import OrderBookMessage, OrderBookMessageType
+from hummingbot.core.data_type.order_book_message import OrderBookMessage
 from hummingbot.core.data_type.order_book_tracker_data_source import OrderBookTrackerDataSource
 from hummingbot.core.web_assistant.connections.data_types import RESTMethod, WSJSONRequest
 from hummingbot.core.web_assistant.web_assistants_factory import WebAssistantsFactory
@@ -29,7 +29,7 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
     Follows the parent class pattern for WebSocket message routing.
     """
 
-    HEARTBEAT_TIME_INTERVAL = 30.0
+    HEARTBEAT_TIME_INTERVAL = CONSTANTS.HEARTBEAT_TIME_INTERVAL
     TRADE_STREAM_ID = 1
     DIFF_STREAM_ID = 2
     ONE_HOUR = 60 * 60
@@ -238,38 +238,29 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             raw_message: Raw WebSocket message
             message_queue: Queue to add parsed message to
         """
-        try:
-            data = raw_message.get("data", {})
+        data = raw_message["data"]
 
-            # Backpack uses abbreviated field names in WebSocket:
-            # 's' for symbol, 'a' for asks, 'b' for bids, 'T' for timestamp, 'u' for update_id
-            exchange_symbol = data.get("s") or data.get("symbol")
+        # Backpack uses abbreviated field names in WebSocket:
+        # 's' for symbol, 'a' for asks, 'b' for bids, 'T' for timestamp, 'u' for update_id
+        exchange_symbol = data["s"]
+        trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
 
-            if exchange_symbol:
-                trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
+        if trading_pair in self._trading_pairs:
+            timestamp = data.get("T", data.get("E", time.time() * 1_000_000)) / 1_000_000
+            diff_payload = {
+                "trading_pair": trading_pair,
+                "b": data["b"],
+                "a": data["a"],
+                "U": data["U"],
+                "u": data["u"],
+            }
 
-                if trading_pair in self._trading_pairs:
-                    timestamp = data.get("T", data.get("E", time.time() * 1_000_000)) / 1_000_000
-                    diff_payload = {
-                        "trading_pair": trading_pair,
-                        "b": data.get("b", data.get("bids", [])),
-                        "a": data.get("a", data.get("asks", [])),
-                        "U": data.get("U", data.get("u", 0)),
-                        "u": data.get("u", data.get("U", 0)),
-                    }
-
-                    order_book_message = BackpackOrderBook.diff_message_from_exchange(
-                        diff_payload,
-                        timestamp=timestamp,
-                    )
-
-                    await message_queue.put(order_book_message)
-
-        except Exception:
-            self.logger().error(
-                f"Error parsing order book diff message: {raw_message}",
-                exc_info=True,
+            order_book_message = BackpackOrderBook.diff_message_from_exchange(
+                diff_payload,
+                timestamp=timestamp,
             )
+
+            message_queue.put_nowait(order_book_message)
 
     async def _parse_trade_message(
         self,
@@ -282,41 +273,29 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             raw_message: Raw WebSocket message
             message_queue: Queue to add parsed message to
         """
-        try:
-            data = raw_message.get("data", {})
+        data = raw_message["data"]
 
-            # Backpack uses abbreviated field names in WebSocket:
-            # 's' for symbol, 'p' for price, 'q' for quantity, 't' for trade_id
-            exchange_symbol = data.get("s") or data.get("symbol")
+        # Backpack uses abbreviated field names in WebSocket:
+        # 's' for symbol, 'p' for price, 'q' for quantity, 't' for trade_id
+        exchange_symbol = data["s"]
+        trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
 
-            if exchange_symbol:
-                trading_pair = utils.convert_from_exchange_trading_pair(exchange_symbol)
+        if trading_pair in self._trading_pairs:
+            trade_payload = {
+                "trading_pair": trading_pair,
+                "t": data["t"],
+                "p": data["p"],
+                "q": data["q"],
+                "m": data["m"],
+                "E": data.get("E", data.get("T", time.time() * 1_000_000)),
+            }
 
-                if trading_pair in self._trading_pairs:
-                    trade_payload = {
-                        "trading_pair": trading_pair,
-                        "t": data.get("t", data.get("tradeId")),
-                        "p": data.get("p", data.get("price", 0)),
-                        "q": data.get("q", data.get("quantity", 0)),
-                        "m": data.get("m", False),
-                        "E": data.get("E", data.get("T", time.time() * 1_000_000)),
-                    }
-
-                    if trade_payload["t"] is None:
-                        return
-
-                    trade_message = BackpackOrderBook.trade_message_from_exchange(
-                        trade_payload,
-                        metadata={"trading_pair": trading_pair},
-                    )
-
-                    await message_queue.put(trade_message)
-
-        except Exception:
-            self.logger().error(
-                f"Error parsing trade message: {raw_message}",
-                exc_info=True,
+            trade_message = BackpackOrderBook.trade_message_from_exchange(
+                trade_payload,
+                metadata={"trading_pair": trading_pair},
             )
+
+            message_queue.put_nowait(trade_message)
 
     async def _parse_order_book_snapshot_message(
         self,
@@ -329,36 +308,25 @@ class BackpackAPIOrderBookDataSource(OrderBookTrackerDataSource):
             raw_message: Raw snapshot data
             message_queue: Queue to add parsed message to
         """
-        # In Backpack, snapshots come from REST API, not WebSocket
-        # This method handles snapshots placed in queue by _request_order_book_snapshots
-        try:
-            # If this is a REST snapshot, it will have the structure we expect
-            # These are created by _request_order_book_snapshots with guaranteed fields
-            if "trading_pair" not in raw_message:
-                self.logger().error(f"Missing trading_pair in snapshot: {raw_message}")
-                return
+        snapshot_data = raw_message.get("data", raw_message)
 
-            trading_pair = raw_message["trading_pair"]
+        trading_pair = snapshot_data.get("trading_pair")
+        if trading_pair is None:
+            trading_pair = utils.convert_from_exchange_trading_pair(snapshot_data["s"])
 
-            # These fields are guaranteed from our own snapshot creation
-            snapshot_message = OrderBookMessage(
-                message_type=OrderBookMessageType.SNAPSHOT,
-                content={
-                    "trading_pair": trading_pair,
-                    "update_id": raw_message["update_id"],
-                    "bids": raw_message["bids"],
-                    "asks": raw_message["asks"],
-                },
-                timestamp=time.time(),
-            )
+        snapshot_payload = {
+            "trading_pair": trading_pair,
+            "lastUpdateId": snapshot_data["lastUpdateId"],
+            "bids": snapshot_data["bids"],
+            "asks": snapshot_data["asks"],
+        }
 
-            await message_queue.put(snapshot_message)
+        snapshot_message = BackpackOrderBook.snapshot_message_from_exchange(
+            snapshot_payload,
+            timestamp=time.time(),
+        )
 
-        except Exception:
-            self.logger().error(
-                f"Error parsing snapshot message: {raw_message}",
-                exc_info=True,
-            )
+        message_queue.put_nowait(snapshot_message)
 
     async def fetch_trading_pairs(self, domain: str | None = None) -> list[str]:
         """Fetch available trading pairs from the exchange.

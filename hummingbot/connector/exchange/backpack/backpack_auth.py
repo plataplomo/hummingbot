@@ -2,8 +2,6 @@
 Implements Backpack's instruction-based signing scheme for spot endpoints.
 """
 
-from __future__ import annotations
-
 import base64
 import json
 from typing import Any
@@ -34,7 +32,6 @@ class BackpackAuth(AuthBase):
 
         self._private_key = None
         if api_secret:
-            # Load and validate the private key
             try:
                 private_key_bytes = base64.b64decode(api_secret)
                 self._private_key = ed25519.Ed25519PrivateKey.from_private_bytes(private_key_bytes)
@@ -59,14 +56,7 @@ class BackpackAuth(AuthBase):
         return instruction
 
     def _generate_signature(self, payload: str) -> str:
-        """Generate Ed25519 signature for the given payload.
-
-        Args:
-            payload: String to sign
-
-        Returns:
-            Base64 encoded signature
-        """
+        """Generate Ed25519 signature for the given payload."""
         if self._private_key is None:
             raise ValueError("API secret is required to generate signed requests.")
         try:
@@ -82,13 +72,9 @@ class BackpackAuth(AuthBase):
         path: str,
         params: dict[str, Any] | None = None,
         body: str | None = None,
-        data: str | None = None,
         window: str = str(CONSTANTS.AUTH_WINDOW_MS),
     ) -> str:
         """Build the payload string for signing using instruction-based format."""
-        if body is None and data is not None:
-            body = data
-
         instruction = self._get_instruction_for_endpoint(method, path)
         payload_parts = [f"instruction={instruction}"]
 
@@ -120,15 +106,10 @@ class BackpackAuth(AuthBase):
         params: dict[str, Any] | None = None,
         body: str | None = None,
     ) -> dict[str, str]:
-        """Generate authentication headers for a request.
-
-        Returns:
-            Dictionary with X-API-Key, X-Timestamp, X-Signature, X-Window headers
-        """
+        """Generate authentication headers for a request."""
         timestamp = str(self._get_timestamp())
         window = str(CONSTANTS.AUTH_WINDOW_MS)
 
-        # Build signature payload using instruction-based format
         signature_payload = self._build_signature_payload(
             timestamp=timestamp,
             method=method,
@@ -138,7 +119,6 @@ class BackpackAuth(AuthBase):
             window=window,
         )
 
-        # Generate signature
         signature = self._generate_signature(signature_payload)
 
         return {
@@ -149,29 +129,10 @@ class BackpackAuth(AuthBase):
         }
 
     async def rest_authenticate(self, request: RESTRequest) -> RESTRequest:
-        """Add authentication headers to REST request.
-
-        Args:
-            request: REST request to authenticate
-
-        Returns:
-            Authenticated request
-        """
-        # Get URL, defaulting to empty string if None
+        """Add authentication headers to REST request."""
         url = request.url or ""
-
-        # Extract path from URL
-        if url.startswith("http"):
-            # Full URL provided
-            path = "/" + "/".join(url.split("/")[3:])
-        else:
-            # Relative path
-            path = url if url.startswith("/") else f"/{url}"
-
-        # Extract method and path
         method = request.method.name
 
-        # Parse URL to get path and query string
         if "?" in url:
             path = url.split("?")[0]
             query_string = url.split("?")[1]
@@ -180,15 +141,12 @@ class BackpackAuth(AuthBase):
             path = url
             full_path = path
 
-        # For Backpack API, we need just the path part without the base URL
         if full_path.startswith("http"):
-            # Extract path from full URL
             parsed = urlparse(full_path)
             full_path = parsed.path
             if parsed.query:
                 full_path += f"?{parsed.query}"
 
-        # Extract query parameters if present
         params = None
         clean_path = full_path
         if "?" in full_path and method == "GET":
@@ -197,7 +155,6 @@ class BackpackAuth(AuthBase):
         elif request.params:
             params = dict(request.params) if request.params else None
 
-        # Generate auth headers with instruction-based signatures
         auth_headers = self._generate_auth_headers(
             method=method,
             path=clean_path,
@@ -205,11 +162,9 @@ class BackpackAuth(AuthBase):
             body=request.data,
         )
 
-        # Add headers to request
         if request.headers is None:
             request.headers = {}
 
-        # Convert headers to dict if it's a Mapping
         headers_dict = dict(request.headers) if request.headers else {}
         headers_dict.update(auth_headers)
         request.headers = headers_dict
@@ -217,25 +172,11 @@ class BackpackAuth(AuthBase):
         return request
 
     async def ws_authenticate(self, request: WSRequest) -> WSRequest:
-        """Add authentication to WebSocket request.
-
-        Args:
-            request: WebSocket request to authenticate
-
-        Returns:
-            Authenticated WebSocket request
-        """
-        # For Backpack, authentication is sent as a separate message after connection,
-        # not as part of subscription requests. The connection request itself doesn't need modification.
-        # Authentication happens via get_ws_auth_message() which is sent separately.
+        """Add authentication to WebSocket request."""
         return request
 
     def get_ws_auth_message(self) -> dict[str, Any]:
-        """Generate WebSocket authentication message.
-
-        Returns:
-            Authentication message for WebSocket
-        """
+        """Generate WebSocket authentication message."""
         timestamp = str(self._get_timestamp())
         window = str(CONSTANTS.AUTH_WINDOW_MS)
 

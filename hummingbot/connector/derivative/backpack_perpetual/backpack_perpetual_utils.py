@@ -136,9 +136,6 @@ def convert_to_exchange_trading_pair(hb_trading_pair: str) -> str:
     """
     base, quote = split_trading_pair(hb_trading_pair)
 
-    # Backpack uses BTC_PERP when quote is USDC; otherwise include quote
-    if quote.upper() == "USDC":
-        return f"{base}_PERP"
     return f"{base}_{quote}_PERP"
 
 
@@ -200,7 +197,7 @@ def parse_fill_timestamp(timestamp: str | float | int | None) -> float:
     return float(timestamp) / 1_000_000
 
 
-def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:
+def is_exchange_information_valid(exchange_info: dict[str, Any] | list[dict[str, Any]]) -> bool:
     """Check if the exchange information response is valid.
 
     Args:
@@ -209,35 +206,35 @@ def is_exchange_information_valid(exchange_info: dict[str, Any]) -> bool:
     Returns:
         True if valid, False otherwise
     """
-    if not exchange_info or not isinstance(exchange_info, dict):
+    if not exchange_info:
+        return False
+
+    markets: list[dict[str, Any]] | None = None
+    if isinstance(exchange_info, list):
+        markets = exchange_info
+    elif isinstance(exchange_info, dict):
+        markets = exchange_info.get("symbols") or exchange_info.get("markets") or exchange_info.get("data")
+    else:
+        return False
+
+    if not isinstance(markets, list) or len(markets) == 0:
         return False
     try:
-        # Check for required fields based on Backpack's API structure
-        # The exchange info should have a list of markets/symbols
-        if "symbols" in exchange_info:
-            # Check that symbols is a list
-            if not isinstance(exchange_info["symbols"], list):
+        # Validate each market has required fields
+        for market_info in markets:
+            if not isinstance(market_info, dict):
                 return False
-            # Check that at least one symbol exists
-            if len(exchange_info["symbols"]) == 0:
+            if "symbol" not in market_info:
                 return False
-
-            # Validate each symbol has required fields
-            required_symbol_fields = ["symbol", "baseAsset", "quoteAsset", "status"]
-            for symbol_info in exchange_info["symbols"]:
-                if not isinstance(symbol_info, dict):
-                    return False
-                for field in required_symbol_fields:
-                    if field not in symbol_info:
-                        return False
-
-            return True
-        if "markets" in exchange_info:
-            # Alternative field name
-            if not isinstance(exchange_info["markets"], list):
+            base = market_info.get("baseSymbol") or market_info.get("baseAsset")
+            quote = market_info.get("quoteSymbol") or market_info.get("quoteAsset")
+            if not base or not quote:
                 return False
-            return len(exchange_info["markets"]) != 0
-        return False
+            if "marketType" not in market_info:
+                return False
+            if "filters" not in market_info:
+                return False
+        return True
     except Exception:
         return False
 

@@ -110,10 +110,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         self._ws_assistant = await self._api_factory.get_ws_assistant()
         # Get WebSocket URL using proper domain-based lookup (same URL for public and private)
         ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
-        await self._ws_assistant.connect(
-            ws_url=ws_url,
-            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
-        )
+        async with self._api_factory.throttler.execute_task(limit_id=CONSTANTS.WS_CONNECTION_LIMIT_ID):
+            await self._ws_assistant.connect(
+                ws_url=ws_url,
+                ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
+            )
         return self._ws_assistant
 
     async def _authenticate_websocket(self, ws: WSAssistant) -> bool:
@@ -167,7 +168,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         }
 
         subscribe_request = WSJSONRequest(payload=subscribe_msg)
-        await ws.send(subscribe_request)
+        async with self._api_factory.throttler.execute_task(limit_id=CONSTANTS.WS_PRIVATE_SUBSCRIPTION_LIMIT_ID):
+            await ws.send(subscribe_request)
         self.logger().debug(f"Subscribed to private channels: {channels}")
 
     def _process_event(self, event: dict[str, Any]) -> dict[str, Any] | None:
@@ -229,9 +231,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         """
         data = event.get("data", event)
 
-        # Convert symbol format
-        if "symbol" in data:
-            trading_pair = utils.convert_from_exchange_trading_pair(data["symbol"])
+        # Normalize symbol key and convert to trading pair
+        symbol = data.get("symbol") or data.get("s")
+        if symbol:
+            data["symbol"] = symbol
+            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
             if trading_pair:
                 data["trading_pair"] = trading_pair
 
@@ -267,9 +271,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         """
         data = event.get("data", event)
 
-        # Convert symbol format
-        if "symbol" in data:
-            trading_pair = utils.convert_from_exchange_trading_pair(data["symbol"])
+        # Normalize symbol key and convert to trading pair
+        symbol = data.get("symbol") or data.get("s")
+        if symbol:
+            data["symbol"] = symbol
+            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
             if trading_pair:
                 data["trading_pair"] = trading_pair
 
@@ -289,9 +295,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         """
         data = event.get("data", event)
 
-        # Convert symbol format
-        if "symbol" in data:
-            trading_pair = utils.convert_from_exchange_trading_pair(data["symbol"])
+        # Normalize symbol key and convert to trading pair
+        symbol = data.get("symbol") or data.get("s")
+        if symbol:
+            data["symbol"] = symbol
+            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
             if trading_pair:
                 data["trading_pair"] = trading_pair
 
@@ -311,9 +319,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         """
         data = event.get("data", event)
 
-        # Convert symbol format
-        if "symbol" in data:
-            trading_pair = utils.convert_from_exchange_trading_pair(data["symbol"])
+        # Normalize symbol key and convert to trading pair
+        symbol = data.get("symbol") or data.get("s")
+        if symbol:
+            data["symbol"] = symbol
+            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
             if trading_pair:
                 data["trading_pair"] = trading_pair
 
@@ -333,9 +343,11 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         """
         data = event.get("data", event)
 
-        # Convert symbol format
-        if "symbol" in data:
-            trading_pair = utils.convert_from_exchange_trading_pair(data["symbol"])
+        # Normalize symbol key and convert to trading pair
+        symbol = data.get("symbol") or data.get("s")
+        if symbol:
+            data["symbol"] = symbol
+            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
             if trading_pair:
                 data["trading_pair"] = trading_pair
 
@@ -365,7 +377,8 @@ class BackpackPerpetualUserStreamDataSource(UserStreamTrackerDataSource):
         }
 
         ping_request = WSJSONRequest(payload=ping_msg)
-        await ws.send(ping_request)
+        async with self._api_factory.throttler.execute_task(limit_id=CONSTANTS.WS_PRIVATE_SUBSCRIPTION_LIMIT_ID):
+            await ws.send(ping_request)
 
     async def _sleep(self, delay: float):
         """Sleep for specified delay.

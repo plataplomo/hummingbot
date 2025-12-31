@@ -7,15 +7,15 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from aioresponses.core import aioresponses
 from bidict import bidict
 
-from hummingbot.connector.exchange.binance import binance_constants as CONSTANTS, binance_web_utils as web_utils
-from hummingbot.connector.exchange.binance.binance_api_order_book_data_source import BinanceAPIOrderBookDataSource
-from hummingbot.connector.exchange.binance.binance_exchange import BinanceExchange
+from hummingbot.connector.exchange.backpack import backpack_constants as CONSTANTS, backpack_web_utils as web_utils
+from hummingbot.connector.exchange.backpack.backpack_api_order_book_data_source import BackpackAPIOrderBookDataSource
+from hummingbot.connector.exchange.backpack.backpack_exchange import BackpackExchange
 from hummingbot.connector.test_support.network_mocking_assistant import NetworkMockingAssistant
 from hummingbot.core.data_type.order_book import OrderBook
 from hummingbot.core.data_type.order_book_message import OrderBookMessage
 
 
-class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
+class BackpackAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     # logging.Level required to receive logs from the data source logger
     level = 0
 
@@ -25,8 +25,8 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         cls.base_asset = "COINALPHA"
         cls.quote_asset = "HBOT"
         cls.trading_pair = f"{cls.base_asset}-{cls.quote_asset}"
-        cls.ex_trading_pair = cls.base_asset + cls.quote_asset
-        cls.domain = "com"
+        cls.ex_trading_pair = f"{cls.base_asset}_{cls.quote_asset}"
+        cls.domain = CONSTANTS.DEFAULT_DOMAIN
 
     async def asyncSetUp(self) -> None:
         await super().asyncSetUp()
@@ -34,16 +34,19 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         self.listening_task = None
         self.mocking_assistant = NetworkMockingAssistant(self.local_event_loop)
 
-        self.connector = BinanceExchange(
-            binance_api_key="",
-            binance_api_secret="",
+        self.connector = BackpackExchange(
+            backpack_api_key="",
+            backpack_api_secret="",
             trading_pairs=[],
             trading_required=False,
-            domain=self.domain)
-        self.data_source = BinanceAPIOrderBookDataSource(trading_pairs=[self.trading_pair],
-                                                         connector=self.connector,
-                                                         api_factory=self.connector._web_assistants_factory,
-                                                         domain=self.domain)
+            domain=self.domain,
+        )
+        self.data_source = BackpackAPIOrderBookDataSource(
+            trading_pairs=[self.trading_pair],
+            connector=self.connector,
+            api_factory=self.connector._web_assistants_factory,
+            domain=self.domain,
+        )
         self.data_source.logger().setLevel(1)
         self.data_source.logger().addHandler(self)
 
@@ -70,43 +73,32 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         self.resume_test_event.set()
         raise exception
 
-    def _successfully_subscribed_event(self):
-        resp = {
-            "result": None,
-            "id": 1
-        }
-        return resp
-
     def _trade_update_event(self):
-        resp = {
-            "e": "trade",
-            "E": 123456789,
-            "s": self.ex_trading_pair,
-            "t": 12345,
-            "p": "0.001",
-            "q": "100",
-            "b": 88,
-            "a": 50,
-            "T": 123456785,
-            "m": True,
-            "M": True
+        return {
+            "data": {
+                "s": self.ex_trading_pair,
+                "t": 12345,
+                "p": "0.001",
+                "q": "100",
+                "m": True,
+                "E": 1234567890123,
+            }
         }
-        return resp
 
     def _order_diff_event(self):
-        resp = {
-            "e": "depthUpdate",
-            "E": 123456789,
-            "s": self.ex_trading_pair,
-            "U": 157,
-            "u": 160,
-            "b": [["0.0024", "10"]],
-            "a": [["0.0026", "100"]]
+        return {
+            "data": {
+                "s": self.ex_trading_pair,
+                "U": 157,
+                "u": 160,
+                "b": [["0.0024", "10"]],
+                "a": [["0.0026", "100"]],
+                "T": 1234567890123,
+            }
         }
-        return resp
 
     def _snapshot_response(self):
-        resp = {
+        return {
             "lastUpdateId": 1027024,
             "bids": [
                 [
@@ -121,12 +113,11 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
                 ]
             ]
         }
-        return resp
 
     @aioresponses()
     async def test_get_new_order_book_successful(self, mock_api):
-        url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+        url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
+        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
 
         resp = self._snapshot_response()
 
@@ -150,8 +141,8 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
 
     @aioresponses()
     async def test_get_new_order_book_raises_exception(self, mock_api):
-        url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+        url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
+        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
 
         mock_api.get(regex_url, status=400)
         with self.assertRaises(IOError):
@@ -161,21 +152,13 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     async def test_listen_for_subscriptions_subscribes_to_trades_and_order_diffs(self, ws_connect_mock):
         ws_connect_mock.return_value = self.mocking_assistant.create_websocket_mock()
 
-        result_subscribe_trades = {
-            "result": None,
-            "id": 1
-        }
-        result_subscribe_diffs = {
-            "result": None,
-            "id": 2
+        result_subscribe = {
+            "result": "success",
         }
 
         self.mocking_assistant.add_websocket_aiohttp_message(
             websocket_mock=ws_connect_mock.return_value,
-            message=json.dumps(result_subscribe_trades))
-        self.mocking_assistant.add_websocket_aiohttp_message(
-            websocket_mock=ws_connect_mock.return_value,
-            message=json.dumps(result_subscribe_diffs))
+            message=json.dumps(result_subscribe))
 
         self.listening_task = self.local_event_loop.create_task(self.data_source.listen_for_subscriptions())
 
@@ -184,21 +167,19 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         sent_subscription_messages = self.mocking_assistant.json_messages_sent_through_websocket(
             websocket_mock=ws_connect_mock.return_value)
 
-        self.assertEqual(2, len(sent_subscription_messages))
-        expected_trade_subscription = {
+        self.assertEqual(1, len(sent_subscription_messages))
+        expected_subscription = {
             "method": "SUBSCRIBE",
-            "params": [f"{self.ex_trading_pair.lower()}@trade"],
-            "id": 1}
-        self.assertEqual(expected_trade_subscription, sent_subscription_messages[0])
-        expected_diff_subscription = {
-            "method": "SUBSCRIBE",
-            "params": [f"{self.ex_trading_pair.lower()}@depth@100ms"],
-            "id": 2}
-        self.assertEqual(expected_diff_subscription, sent_subscription_messages[1])
+            "params": [
+                f"{CONSTANTS.WS_DEPTH_CHANNEL}.{self.ex_trading_pair}",
+                f"{CONSTANTS.WS_TRADES_CHANNEL}.{self.ex_trading_pair}",
+            ],
+        }
+        self.assertEqual(expected_subscription, sent_subscription_messages[0])
 
         self.assertTrue(self._is_logged(
             "INFO",
-            "Subscribed to public order book and trade channels..."
+            f"Subscribed to public channels: {expected_subscription['params']}"
         ))
 
     @patch("hummingbot.core.data_type.order_book_tracker_data_source.OrderBookTrackerDataSource._sleep")
@@ -239,13 +220,13 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
             await self.data_source._subscribe_channels(mock_ws)
 
         self.assertTrue(
-            self._is_logged("ERROR", "Unexpected error occurred subscribing to order book trading and delta streams...")
+            self._is_logged("ERROR", "Unexpected error occurred subscribing to order book and trade streams")
         )
 
     async def test_listen_for_trades_cancelled_when_listening(self):
         mock_queue = MagicMock()
         mock_queue.get.side_effect = asyncio.CancelledError()
-        self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE] = mock_queue
+        self.data_source._message_queue[self.data_source._trade_messages_queue_key] = mock_queue
 
         msg_queue: asyncio.Queue = asyncio.Queue()
 
@@ -253,14 +234,9 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
             await self.data_source.listen_for_trades(self.local_event_loop, msg_queue)
 
     async def test_listen_for_trades_logs_exception(self):
-        incomplete_resp = {
-            "m": 1,
-            "i": 2,
-        }
-
         mock_queue = AsyncMock()
-        mock_queue.get.side_effect = [incomplete_resp, asyncio.CancelledError()]
-        self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE] = mock_queue
+        mock_queue.get.side_effect = ["bad_message", asyncio.CancelledError()]
+        self.data_source._message_queue[self.data_source._trade_messages_queue_key] = mock_queue
 
         msg_queue: asyncio.Queue = asyncio.Queue()
 
@@ -275,7 +251,7 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     async def test_listen_for_trades_successful(self):
         mock_queue = AsyncMock()
         mock_queue.get.side_effect = [self._trade_update_event(), asyncio.CancelledError()]
-        self.data_source._message_queue[CONSTANTS.TRADE_EVENT_TYPE] = mock_queue
+        self.data_source._message_queue[self.data_source._trade_messages_queue_key] = mock_queue
 
         msg_queue: asyncio.Queue = asyncio.Queue()
 
@@ -289,7 +265,7 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
     async def test_listen_for_order_book_diffs_cancelled(self):
         mock_queue = AsyncMock()
         mock_queue.get.side_effect = asyncio.CancelledError()
-        self.data_source._message_queue[CONSTANTS.DIFF_EVENT_TYPE] = mock_queue
+        self.data_source._message_queue[self.data_source._diff_messages_queue_key] = mock_queue
 
         msg_queue: asyncio.Queue = asyncio.Queue()
 
@@ -297,14 +273,9 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
             await self.data_source.listen_for_order_book_diffs(self.local_event_loop, msg_queue)
 
     async def test_listen_for_order_book_diffs_logs_exception(self):
-        incomplete_resp = {
-            "m": 1,
-            "i": 2,
-        }
-
         mock_queue = AsyncMock()
-        mock_queue.get.side_effect = [incomplete_resp, asyncio.CancelledError()]
-        self.data_source._message_queue[CONSTANTS.DIFF_EVENT_TYPE] = mock_queue
+        mock_queue.get.side_effect = ["bad_message", asyncio.CancelledError()]
+        self.data_source._message_queue[self.data_source._diff_messages_queue_key] = mock_queue
 
         msg_queue: asyncio.Queue = asyncio.Queue()
 
@@ -320,7 +291,7 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
         mock_queue = AsyncMock()
         diff_event = self._order_diff_event()
         mock_queue.get.side_effect = [diff_event, asyncio.CancelledError()]
-        self.data_source._message_queue[CONSTANTS.DIFF_EVENT_TYPE] = mock_queue
+        self.data_source._message_queue[self.data_source._diff_messages_queue_key] = mock_queue
 
         msg_queue: asyncio.Queue = asyncio.Queue()
 
@@ -329,12 +300,12 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
 
         msg: OrderBookMessage = await msg_queue.get()
 
-        self.assertEqual(diff_event["u"], msg.update_id)
+        self.assertEqual(diff_event["data"]["u"], msg.update_id)
 
     @aioresponses()
     async def test_listen_for_order_book_snapshots_cancelled_when_fetching_snapshot(self, mock_api):
-        url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+        url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
+        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
 
         mock_api.get(regex_url, exception=asyncio.CancelledError, repeat=True)
 
@@ -342,14 +313,14 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
             await self.data_source.listen_for_order_book_snapshots(self.local_event_loop, asyncio.Queue())
 
     @aioresponses()
-    @patch("hummingbot.connector.exchange.binance.binance_api_order_book_data_source"
-           ".BinanceAPIOrderBookDataSource._sleep")
+    @patch("hummingbot.connector.exchange.backpack.backpack_api_order_book_data_source"
+           ".BackpackAPIOrderBookDataSource._sleep")
     async def test_listen_for_order_book_snapshots_log_exception(self, mock_api, sleep_mock):
         msg_queue: asyncio.Queue = asyncio.Queue()
         sleep_mock.side_effect = lambda _: self._create_exception_and_unlock_test_with_event(asyncio.CancelledError())
 
-        url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+        url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
+        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
 
         mock_api.get(regex_url, exception=Exception, repeat=True)
 
@@ -362,10 +333,10 @@ class BinanceAPIOrderBookDataSourceUnitTests(IsolatedAsyncioWrapperTestCase):
             self._is_logged("ERROR", f"Unexpected error fetching order book snapshot for {self.trading_pair}."))
 
     @aioresponses()
-    async def test_listen_for_order_book_snapshots_successful(self, mock_api, ):
+    async def test_listen_for_order_book_snapshots_successful(self, mock_api):
         msg_queue: asyncio.Queue = asyncio.Queue()
-        url = web_utils.public_rest_url(path_url=CONSTANTS.SNAPSHOT_PATH_URL, domain=self.domain)
-        regex_url = re.compile(f"^{url}".replace(".", r"\.").replace("?", r"\?"))
+        url = web_utils.public_rest_url(path_url=CONSTANTS.DEPTH_URL, domain=self.domain)
+        regex_url = re.compile(f"^{url}".replace(".", r"\\.").replace("?", r"\\?"))
 
         mock_api.get(regex_url, body=json.dumps(self._snapshot_response()))
 

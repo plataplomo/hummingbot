@@ -58,37 +58,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         trading_pairs: list[str],
         domain: str | None = None,
     ) -> dict[str, float]:
-        """Get last traded prices for trading pairs.
-
-        Args:
-            trading_pairs: List of trading pairs
-            domain: Exchange domain
-
-        Returns:
-            Dictionary mapping trading pairs to their last traded prices
-        """
-        domain = domain or self._domain
-        results = {}
-
-        for trading_pair in trading_pairs:
-            symbol = utils.convert_to_exchange_trading_pair(trading_pair)
-            try:
-                response = await web_utils.api_request(
-                    path=CONSTANTS.TICKER_URL,
-                    api_factory=self._api_factory,
-                    params={"symbol": symbol},
-                    method=RESTMethod.GET,
-                    is_auth_required=False,
-                )
-
-                # Normalize response and get first item
-                response_list = utils.normalize_response_to_list(response)
-                if response_list and isinstance(response_list[0], dict) and "lastPrice" in response_list[0]:
-                    results[trading_pair] = float(response_list[0]["lastPrice"])
-            except Exception:
-                self.logger().exception(f"Error fetching last price for {trading_pair}")
-
-        return results
+        """Get last traded prices for trading pairs."""
+        return await self._connector.get_last_traded_prices(trading_pairs=trading_pairs)
 
     async def get_funding_info(self, trading_pair: str) -> FundingInfo:
         """Get funding rate information for a trading pair.
@@ -138,14 +109,21 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             OrderBookMessage containing snapshot data
         """
         snapshot_data = await self._request_order_book_snapshot(trading_pair)
+        if "bids" not in snapshot_data or "asks" not in snapshot_data:
+            raise ValueError(f"Missing bids or asks in snapshot: {snapshot_data}")
+
+        bids = snapshot_data["bids"]
+        asks = snapshot_data["asks"]
+        formatted_bids = [[float(bid[0]), float(bid[1])] for bid in bids if len(bid) >= 2]
+        formatted_asks = [[float(ask[0]), float(ask[1])] for ask in asks if len(ask) >= 2]
 
         snapshot_msg = OrderBookMessage(
             message_type=OrderBookMessageType.SNAPSHOT,
             content={
                 "trading_pair": trading_pair,
-                "bids": snapshot_data.get("bids", []),
-                "asks": snapshot_data.get("asks", []),
-                "update_id": int(snapshot_data.get("lastUpdateId") or snapshot_data.get("timestamp", 0)),
+                "bids": formatted_bids,
+                "asks": formatted_asks,
+                "update_id": int(snapshot_data.get("lastUpdateId", 0)),
             },
             # REST depth endpoint returns timestamp in microseconds
             timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
@@ -171,28 +149,7 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             method=RESTMethod.GET,
             is_auth_required=False,
         )
-
-        # Handle response format
-        if isinstance(response, dict):
-            return {
-                "trading_pair": trading_pair,
-                "symbol": symbol,
-                "bids": response.get("bids", []),
-                "asks": response.get("asks", []),
-                "lastUpdateId": int(response.get("lastUpdateId", 0)),
-                # REST depth endpoint returns timestamp in microseconds
-                "timestamp": response.get("timestamp", time.time() * 1_000_000),
-            }
-        # Handle unexpected list format
-        return {
-            "trading_pair": trading_pair,
-            "symbol": symbol,
-            "bids": [],
-            "asks": [],
-            "lastUpdateId": 0,
-            # Fake timestamp in microseconds for consistency
-            "timestamp": time.time() * 1_000_000,
-        }
+        return response if isinstance(response, dict) else {}
 
     async def get_order_book_data(self, trading_pair: str) -> dict[str, Any]:
         """Get order book data for a specific trading pair."""
@@ -208,10 +165,11 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         """
         ws = await self._api_factory.get_ws_assistant()
         ws_url = CONSTANTS.WSS_URLS.get(self._domain, CONSTANTS.WSS_URLS[CONSTANTS.DEFAULT_DOMAIN])
-        await ws.connect(
-            ws_url=ws_url,
-            ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
-        )
+        async with self._api_factory.throttler.execute_task(limit_id=CONSTANTS.WS_CONNECTION_LIMIT_ID):
+            await ws.connect(
+                ws_url=ws_url,
+                ping_timeout=CONSTANTS.HEARTBEAT_TIME_INTERVAL,
+            )
         return ws
 
     async def _subscribe_channels(self, ws: WSAssistant):
@@ -242,7 +200,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             }
 
             subscribe_request = WSJSONRequest(payload=subscription_payload)
-            await ws.send(subscribe_request)
+            async with self._api_factory.throttler.execute_task(limit_id=CONSTANTS.WS_PUBLIC_SUBSCRIPTION_LIMIT_ID):
+                await ws.send(subscribe_request)
 
             self.logger().info(f"Subscribed to public channels: {subscriptions}")
 
@@ -315,11 +274,8 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
         trading_pairs = []
         for symbol_info in symbols:
             try:
-                if symbol_info.get("contractType") not in ["PERPETUAL", None] and not utils.is_perpetual_symbol(
-                    symbol_info.get("symbol", "")
-                ):
-                    continue
-                if symbol_info.get("contractType") and symbol_info.get("contractType") != "PERPETUAL":
+                market_type = symbol_info.get("marketType")
+                if market_type and market_type not in ["PERP", "IPERP"]:
                     continue
                 symbol = symbol_info.get("symbol")
                 if not symbol or not utils.is_perpetual_symbol(symbol):
@@ -357,50 +313,46 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             raw_message: Raw trade data
             message_queue: Queue to put the parsed message
         """
-        try:
-            # Extract trade data
-            trade_data = raw_message.get("data", raw_message)
+        trade_data = raw_message.get("data", raw_message)
 
-            # Get trading pair
-            symbol = trade_data.get("symbol", trade_data.get("s", ""))
-            if not symbol:
-                return
+        symbol = trade_data.get("s", trade_data.get("symbol", ""))
+        if not symbol:
+            return
 
-            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-            if not trading_pair or trading_pair not in self._trading_pairs:
-                return
+        trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+        if not trading_pair or trading_pair not in self._trading_pairs:
+            return
 
-            trade_id = trade_data.get("t", trade_data.get("tradeId", trade_data.get("id")))
-            if trade_id is None:
-                return
+        trade_id = trade_data.get("t", trade_data.get("tradeId", trade_data.get("id", trade_data.get("a"))))
+        if trade_id is None:
+            return
 
-            side = trade_data.get("side")
-            if side:
-                trade_type = (
-                    float(TradeType.BUY.value)
-                    if str(side).upper() in ["BUY", "BID"]
-                    else float(TradeType.SELL.value)
-                )
-            else:
-                is_buyer_maker = trade_data.get("m", False)
-                trade_type = float(TradeType.SELL.value) if is_buyer_maker else float(TradeType.BUY.value)
-
-            trade_message = OrderBookMessage(
-                message_type=OrderBookMessageType.TRADE,
-                content={
-                    "trading_pair": trading_pair,
-                    "trade_id": str(trade_id),
-                    "price": trade_data.get("p", trade_data.get("price", 0)),
-                    "amount": trade_data.get("q", trade_data.get("quantity", 0)),
-                    "trade_type": trade_type,
-                },
-                timestamp=trade_data.get("timestamp", trade_data.get("T", time.time() * 1_000_000)) / 1_000_000,
+        side = trade_data.get("S", trade_data.get("side"))
+        if side:
+            trade_type = (
+                float(TradeType.BUY.value)
+                if str(side).upper() in ["BUY", "BID"]
+                else float(TradeType.SELL.value)
             )
+        else:
+            is_buyer_maker = trade_data.get("m", False)
+            trade_type = float(TradeType.SELL.value) if is_buyer_maker else float(TradeType.BUY.value)
 
-            await message_queue.put(trade_message)
+        timestamp = trade_data.get("T", trade_data.get("E", trade_data.get("timestamp", time.time() * 1_000_000)))
 
-        except Exception:
-            self.logger().exception("Error parsing trade message")
+        trade_message = OrderBookMessage(
+            message_type=OrderBookMessageType.TRADE,
+            content={
+                "trading_pair": trading_pair,
+                "trade_id": str(trade_id),
+                "price": trade_data.get("p", trade_data.get("price", 0)),
+                "amount": trade_data.get("q", trade_data.get("quantity", 0)),
+                "trade_type": trade_type,
+            },
+            timestamp=timestamp / 1_000_000,
+        )
+
+        await message_queue.put(trade_message)
 
     async def _parse_order_book_diff_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
         """Parse order book diff message from WebSocket.
@@ -409,37 +361,32 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             raw_message: Raw order book diff data
             message_queue: Queue to put the parsed message
         """
-        try:
-            # Extract depth data
-            depth_data = raw_message.get("data", raw_message)
+        depth_data = raw_message.get("data", raw_message)
 
-            # Get trading pair
-            symbol = depth_data.get("symbol", depth_data.get("s", ""))
-            if not symbol:
-                return
+        symbol = depth_data.get("s", depth_data.get("symbol", ""))
+        if not symbol:
+            return
 
-            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-            if not trading_pair or trading_pair not in self._trading_pairs:
-                return
+        trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+        if not trading_pair or trading_pair not in self._trading_pairs:
+            return
 
-            # Create diff message
-            diff_message = OrderBookMessage(
-                message_type=OrderBookMessageType.DIFF,
-                content={
-                    "trading_pair": trading_pair,
-                    "bids": depth_data.get("b", depth_data.get("bids", [])),
-                    "asks": depth_data.get("a", depth_data.get("asks", [])),
-                    "update_id": depth_data.get("lastUpdateId", depth_data.get("u", 0)),
-                    "first_update_id": depth_data.get("firstUpdateId", depth_data.get("U", 0)),
-                },
-                # WebSocket T field is in microseconds
-                timestamp=depth_data.get("timestamp", depth_data.get("T", time.time() * 1_000_000)) / 1_000_000,
-            )
+        timestamp = depth_data.get("T", depth_data.get("timestamp", time.time() * 1_000_000))
+        update_id = int(depth_data.get("u", depth_data.get("lastUpdateId", 0)))
 
-            await message_queue.put(diff_message)
+        diff_message = OrderBookMessage(
+            message_type=OrderBookMessageType.DIFF,
+            content={
+                "trading_pair": trading_pair,
+                "bids": depth_data.get("b", depth_data.get("bids", [])),
+                "asks": depth_data.get("a", depth_data.get("asks", [])),
+                "update_id": update_id,
+                "first_update_id": int(depth_data.get("U", depth_data.get("firstUpdateId", update_id))),
+            },
+            timestamp=timestamp / 1_000_000,
+        )
 
-        except Exception:
-            self.logger().exception("Error parsing order book diff message")
+        await message_queue.put(diff_message)
 
     async def _parse_order_book_snapshot_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
         """Parse order book snapshot message.
@@ -448,35 +395,35 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             raw_message: Raw snapshot data
             message_queue: Queue to put the parsed message
         """
-        # Snapshots come from REST API, not WebSocket in Backpack
-        # This is called when snapshots are placed in the queue by REST requests
-        try:
-            snapshot_data = raw_message.get("data", raw_message)
+        snapshot_data = raw_message.get("data", raw_message)
 
-            symbol = snapshot_data.get("symbol", "")
+        trading_pair = snapshot_data.get("trading_pair")
+        if trading_pair is None:
+            symbol = snapshot_data.get("symbol", snapshot_data.get("s", ""))
             if not symbol:
                 return
-
             trading_pair = utils.convert_from_exchange_trading_pair(symbol)
             if not trading_pair:
                 return
 
-            snapshot_message = OrderBookMessage(
-                message_type=OrderBookMessageType.SNAPSHOT,
-                content={
-                    "trading_pair": trading_pair,
-                    "bids": snapshot_data.get("bids", []),
-                    "asks": snapshot_data.get("asks", []),
-                    "update_id": int(snapshot_data.get("lastUpdateId", 0)),
-                },
-                # REST depth endpoint returns timestamp in microseconds
-                timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
-            )
+        bids = snapshot_data.get("bids", [])
+        asks = snapshot_data.get("asks", [])
+        formatted_bids = [[float(bid[0]), float(bid[1])] for bid in bids if len(bid) >= 2]
+        formatted_asks = [[float(ask[0]), float(ask[1])] for ask in asks if len(ask) >= 2]
 
-            await message_queue.put(snapshot_message)
+        snapshot_message = OrderBookMessage(
+            message_type=OrderBookMessageType.SNAPSHOT,
+            content={
+                "trading_pair": trading_pair,
+                "bids": formatted_bids,
+                "asks": formatted_asks,
+                "update_id": int(snapshot_data.get("lastUpdateId", 0)),
+            },
+            # REST depth endpoint returns timestamp in microseconds
+            timestamp=snapshot_data.get("timestamp", time.time() * 1_000_000) / 1_000_000,
+        )
 
-        except Exception:
-            self.logger().exception("Error parsing snapshot message")
+        await message_queue.put(snapshot_message)
 
     async def _parse_funding_info_message(self, raw_message: dict[str, Any], message_queue: asyncio.Queue):
         """Parse funding info messages from WebSocket.
@@ -485,49 +432,32 @@ class BackpackPerpetualAPIOrderBookDataSource(PerpetualAPIOrderBookDataSource):
             raw_message: Raw funding info message
             message_queue: Queue to put parsed messages
         """
-        try:
-            # Extract data from the message
-            data = raw_message.get("data", raw_message)
+        data = raw_message.get("data", raw_message)
 
-            # Get symbol and convert to trading pair
-            symbol = data.get("s", data.get("symbol", ""))
-            if not symbol:
-                return
+        symbol = data.get("s", data.get("symbol", ""))
+        if not symbol:
+            return
 
-            trading_pair = utils.convert_from_exchange_trading_pair(symbol)
-            if not trading_pair or trading_pair not in self._trading_pairs:
-                return
+        trading_pair = utils.convert_from_exchange_trading_pair(symbol)
+        if not trading_pair or trading_pair not in self._trading_pairs:
+            return
 
-            # Create funding info update
-            funding_info = FundingInfoUpdate(trading_pair=trading_pair)
+        funding_info = FundingInfoUpdate(trading_pair=trading_pair)
 
-            # Set mark price if present
-            if "p" in data or "markPrice" in data:
-                funding_info.mark_price = Decimal(str(data.get("p", data.get("markPrice", 0))))
+        if "p" in data or "markPrice" in data:
+            funding_info.mark_price = Decimal(str(data.get("p", data.get("markPrice", 0))))
 
-            # Set index price if present
-            if "i" in data or "indexPrice" in data:
-                funding_info.index_price = Decimal(str(data.get("i", data.get("indexPrice", 0))))
+        if "i" in data or "indexPrice" in data:
+            funding_info.index_price = Decimal(str(data.get("i", data.get("indexPrice", 0))))
 
-            # Set funding rate if present
-            if "f" in data or "fundingRate" in data:
-                funding_info.rate = Decimal(str(data.get("f", data.get("fundingRate", 0))))
+        if "f" in data or "fundingRate" in data:
+            funding_info.rate = Decimal(str(data.get("f", data.get("fundingRate", 0))))
 
-            # Set next funding timestamp
-            if "n" in data or "nextFundingTimestamp" in data:
-                # Convert from milliseconds/microseconds to seconds
-                timestamp = data.get("n", data.get("nextFundingTimestamp", 0))
-                if timestamp > 1e10:  # Microseconds
-                    funding_info.next_funding_utc_timestamp = timestamp // 1_000_000
-                elif timestamp > 1e7:  # Milliseconds
-                    funding_info.next_funding_utc_timestamp = timestamp // 1000
-                else:
-                    funding_info.next_funding_utc_timestamp = timestamp
+        if "n" in data or "nextFundingTimestamp" in data:
+            timestamp = data.get("n", data.get("nextFundingTimestamp", 0))
+            if timestamp > 1e15:  # Microseconds
+                funding_info.next_funding_utc_timestamp = int(timestamp) // 1_000_000
+            else:
+                funding_info.next_funding_utc_timestamp = int(timestamp) // 1000
 
-            # Put the funding info update in the message queue
-            await message_queue.put(funding_info)
-
-        except Exception:
-            self.logger().exception(
-                f"Error parsing funding info message: {raw_message}",
-            )
+        await message_queue.put(funding_info)
