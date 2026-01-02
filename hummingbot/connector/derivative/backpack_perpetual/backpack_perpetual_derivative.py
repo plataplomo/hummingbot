@@ -1669,10 +1669,21 @@ class BackpackPerpetualDerivative(PerpetualDerivativePyBase):
                 # Important: After a fill, trigger a position update to ensure
                 # positions are correctly tracked even if WebSocket is delayed
                 # This helps prevent the race condition where positions disappear
-                safe_ensure_future(self._update_positions())
+                safe_ensure_future(self._update_positions_after_fill())
 
         except Exception:
             self.logger().exception(f"Error processing trade fill: {fill_data}")
+
+    async def _update_positions_after_fill(self):
+        try:
+            await self._update_positions()
+        except asyncio.CancelledError:
+            raise
+        except Exception as error:
+            self.logger().warning(
+                f"Failed to refresh positions after fill. Error: {error}",
+                exc_info=True,
+            )
 
     def _process_order_status_update(self, order_data: dict[str, Any]):
         """Process order status update."""
